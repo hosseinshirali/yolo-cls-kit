@@ -1,0 +1,14 @@
+# Main dependencies for the YOLO classification pipeline
+# PyTorch installation (adjust based on your CUDA version)
+# Install using: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+ultralytics
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+rich
+opencv-python
+ttach
+seaborn
+

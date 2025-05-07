@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# YOLO models and weights
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+
+# Virtual Environment
+yolo_cls_env/
+venv/
+ENV/
+
+# Dataset
+dataset/
+
+# Output directories
+test_run*/
+*_results/
+runs/
+
+# Images and visualizations
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+
+# Excel files
+*.xlsx
+*.xls
+*.csv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Mac OS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini 
