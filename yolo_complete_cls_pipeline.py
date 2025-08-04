@@ -653,6 +653,13 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     # Merge the DataFrames on 'Filename'
     merged_df = pd.merge(df_gt, pred_results, on='Filename', suffixes=('_gt', '_pred'))
     
+    # Save predictions to Excel file
+    predictions_df = merged_df[['Filename', 'Label_gt', 'Label_pred']].copy()
+    predictions_df.columns = ['file_name', 'true_label', 'prediction']  # Rename columns to requested format
+    predictions_excel_path = output_root / 'predictions.xlsx'
+    predictions_df.to_excel(predictions_excel_path, index=False)
+    print(f"\nSaved predictions to: {predictions_excel_path}")
+    
     print("\nMerged DataFrame shape:", merged_df.shape)
     print("Ground truth labels:", merged_df['Label_gt'].unique())
     print("Predicted labels:", merged_df['Label_pred'].unique())
