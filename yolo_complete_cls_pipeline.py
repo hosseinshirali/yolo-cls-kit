@@ -311,7 +311,7 @@ def create_dataset_from_excel(image_root: str | Path, excel_path: str | Path, de
     
     # Get list of image files in the source directory
     print(f"Scanning for images in {image_root}")
-    image_extensions = ['.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG', '.tiff', '.TIFF', '.webp', '.WEBP']
+    image_extensions = ['.jpg', '.png', '.jpeg', '.JPG', '.PNG', '.JPEG', '.tiff', '.TIFF', '.tif', '.WEBP']
     
     # Try both methods to find image files
     image_files = []
@@ -490,23 +490,30 @@ def train_yolo_classification(dataset_path, project_dir, train_name, training_pa
     if augmentations:
         train_args.update(augmentations)
     
+    # Remove project and name from train_args if they exist
+    if 'project' in train_args:
+        del train_args['project']
+    if 'name' in train_args:
+        del train_args['name']
+    
     # Train the model
     results = model.train(
-        name=train_name,  # Run name for this training session
-        project=project_dir,  # Save to project directory
         data=dataset_path,
+        project=project_dir,
+        name=train_name,
         **train_args,
     )
     
     return model, results
 
-def run_postprocessing(model_path: str, test_data_folder: str, output_root: str, classes: list, test_name="test_results", sample_size=10, excel_df=None):
+def run_postprocessing(model_path: str, test_data_folder: str, output_root: str, classes: list, test_name="test_results", sample_size=30, excel_df=None):
     
     ##########################
     # PREPARE POSTPROCESSING #
     ##########################
     output_root = Path(output_root)
     model_path = Path(model_path)
+    test_data_folder = Path(test_data_folder)  # Convert to Path object
 
     model = YOLO(str(model_path))
     extensions =  ['tiff', 'pfm', 'jpg', 'tif', 'dng', 'webp', 'bmp', 'jpeg', 'png', 'mpo']
@@ -699,18 +706,37 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     ############
     # EIGENCAM #
     ############
+    print("\nGenerating EigenCAM visualizations...")
+    
+    # Ensure we load the best model for visualization
+    print(f"Loading best model from {model_path} for EigenCAM")
+    vis_model = YOLO(str(model_path))
+    
     all_test_image_filepaths = test_data_df['filepath'].tolist()
     if len(all_test_image_filepaths) < sample_size:
         sample_size = len(all_test_image_filepaths)
         print(f"Sample size is larger than number of images. Using all {sample_size} images.")
     # Randomly select n images
-    print(f"\n\nRandomly selecting {sample_size} images for EigenCAM")
+    print(f"Randomly selecting {sample_size} images for EigenCAM")
     selected_images = random.sample(all_test_image_filepaths, sample_size)
 
+    # Create eigencam subdirectory
+    eigencam_dir = output_root / 'eigencam'
+    eigencam_dir.mkdir(parents=True, exist_ok=True)
 
     # Loop over the selected images
-    for image_filepath in selected_images:
-        apply_eigencam(model, image_filepath, output_root, target=-2, task='cls', show=False)
+    with Progress(
+        TextColumn("[cyan]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        TextColumn("[green]{task.fields[image_name]}"),
+    ) as progress:
+        task = progress.add_task("Generating EigenCAM visualizations", total=len(selected_images), image_name="")
+        
+        for image_filepath in selected_images:
+            progress.update(task, advance=1, image_name=Path(image_filepath).name)
+            apply_eigencam(vis_model, image_filepath, eigencam_dir, target=-2, task='cls', show=False)
         
     # Clean up temporary test_compose folder
     if test_compose_folder.exists():
@@ -719,11 +745,15 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
 
 def apply_eigencam(model, image_path, output_dir, target=-2, task='cls', show=False):
     
+    # Convert paths to Path objects if they are strings
+    image_path = Path(image_path) if isinstance(image_path, str) else image_path
+    output_dir = Path(output_dir) if isinstance(output_dir, str) else output_dir
+    
     # Load the YOLO model
     target_layers = [model.model.model[target]]
 
     # Load and preprocess the image
-    img = cv2.imread(image_path)
+    img = cv2.imread(str(image_path))
     rgb_img = img.copy()
     img = np.float32(img) / 255
 
@@ -738,12 +768,12 @@ def apply_eigencam(model, image_path, output_dir, target=-2, task='cls', show=Fa
         plt.show()
 
     # Save the CAM image
-    cam_image_save_path = os.path.join(output_dir, f"cam_{Path(image_path).name}")
+    cam_image_save_path = output_dir / f"cam_{Path(image_path).name}"
     if not output_dir is None:
         os.makedirs(output_dir, exist_ok=True)
-        plt.imsave(cam_image_save_path, cam_image)
+        plt.imsave(str(cam_image_save_path), cam_image)
 
-def main(image_root, output_dir, splits=None, training_parameter=None, excel_path=None, model_name='yolov8n-cls.pt', augmentations=None):
+def main(image_root, output_dir, splits=None, training_parameter=None, excel_path=None, model_name='yolov8n-cls.pt', augmentations=None, train_name=None, test_name=None):
     """
     Main pipeline to train and evaluate YOLO classification models
 
@@ -755,9 +785,14 @@ def main(image_root, output_dir, splits=None, training_parameter=None, excel_pat
         excel_path (str, optional): Path to Excel file with image metadata
         model_name (str, optional): Name or path of YOLO model (default: yolov8n-cls.pt)
         augmentations (dict, optional): Augmentation parameters
+        train_name (str, optional): Name for training results folder (default: train_results)
+        test_name (str, optional): Name for test results folder (default: test_results)
     """
-    train_name='train_results'
-    test_name='test_results'
+    # Use default names if not provided
+    if train_name is None:
+        train_name = 'train_results'
+    if test_name is None:
+        test_name = 'test_results'
     
     # Apply default training parameters if not provided
     if training_parameter is None:
@@ -806,16 +841,29 @@ def main(image_root, output_dir, splits=None, training_parameter=None, excel_pat
         # For pre-split datasets, we can train directly on the original dataset
         presplit_dataset_path = Path(image_root)
         
+        # Get project and output directories
+        project_dir = output_dir
+        if 'project' in training_parameter and training_parameter['project'] is not None:
+            project_dir = output_dir / training_parameter['project']
+        else:
+            project_dir = output_dir / 'runs/classify'  # YOLO's default project structure
+        
+        # Get experiment name directory
+        exp_name = training_parameter.get('name')
+        if exp_name is None:
+            exp_name = train_name  # Use default name (train_results)
+        exp_dir = project_dir / exp_name
+        
         # Train YOLO model directly on the pre-split dataset
-        train_yolo_classification(presplit_dataset_path, output_dir, train_name, training_parameter, model_name=model_name, augmentations=augmentations)
+        train_yolo_classification(presplit_dataset_path, project_dir, train_name, training_parameter, model_name=model_name, augmentations=augmentations)
         
         # Find best.pt files
-        results_dir = Path(output_dir) / train_name
-        model_files = scan_folders(results_dir, ['best.pt'], Path, abs_paths=True)
+        results_dir = exp_dir
+        model_files = scan_folders(str(results_dir), ['best.pt'], Path, abs_paths=True)
         if len(model_files) > 0:
             model_file = model_files[0]
         else:
-            print(f"\nSomething went wrong. No model checkpoint found in: {output_dir}\n")
+            print(f"\nSomething went wrong. No model checkpoint found in: {exp_dir}\n")
             return
         
         # For inference, we need the test data in a single folder
@@ -828,8 +876,8 @@ def main(image_root, output_dir, splits=None, training_parameter=None, excel_pat
         classes = [Path(folder_path).name for folder_path in folder_paths]
         print(f"Classes: {classes}")
         
-        # Run postprocessing
-        run_postprocessing(model_file, test_data_folder, output_dir, classes, test_name)
+        # Run postprocessing - save results in the experiment directory
+        run_postprocessing(str(model_file), str(test_data_folder), str(exp_dir), classes, test_name)
         
     else:
         # For other dataset types, use the regular workflow
@@ -875,16 +923,29 @@ def main(image_root, output_dir, splits=None, training_parameter=None, excel_pat
             print(f"Unknown dataset type. Please provide valid dataset input.")
             return
     
+        # Get project and output directories
+        project_dir = output_dir
+        if 'project' in training_parameter and training_parameter['project'] is not None:
+            project_dir = output_dir / training_parameter['project']
+        else:
+            project_dir = output_dir / 'runs/classify'  # YOLO's default project structure
+        
+        # Get experiment name directory
+        exp_name = training_parameter.get('name')
+        if exp_name is None:
+            exp_name = train_name  # Use default name (train_results)
+        exp_dir = project_dir / exp_name
+
         # Train YOLO model
-        train_yolo_classification(temp_dataset_path, output_dir, train_name, training_parameter, model_name=model_name, augmentations=augmentations)
+        train_yolo_classification(temp_dataset_path, project_dir, train_name, training_parameter, model_name=model_name, augmentations=augmentations)
 
         # Find best.pt files
-        results_dir = Path(output_dir) / train_name
-        model_files = scan_folders(results_dir, ['best.pt'], Path, abs_paths=True)
+        results_dir = exp_dir
+        model_files = scan_folders(str(results_dir), ['best.pt'], Path, abs_paths=True)
         if len(model_files) > 0:
             model_file = model_files[0]
         else:
-            print(f"\nSomething went wrong. No model checkpoint found in: {output_dir}\n")
+            print(f"\nSomething went wrong. No model checkpoint found in: {exp_dir}\n")
             return
         
         # Run postprocessing
@@ -897,9 +958,9 @@ def main(image_root, output_dir, splits=None, training_parameter=None, excel_pat
         
         # Pass the Excel dataframe to run_postprocessing if using Excel method
         if dataset_type == "excel" and excel_df is not None:
-            run_postprocessing(model_file, test_data_folder, output_dir, classes, test_name, excel_df=excel_df)
+            run_postprocessing(str(model_file), str(test_data_folder), str(exp_dir), classes, test_name, excel_df=excel_df)
         else:
-            run_postprocessing(model_file, test_data_folder, output_dir, classes, test_name)
+            run_postprocessing(str(model_file), str(test_data_folder), str(exp_dir), classes, test_name)
     
     # Copy split files to output directory if they exist
     if dataset_type == "txt_splits" and splits is not None:

@@ -83,6 +83,10 @@ def parse_args():
                         help='Device to use (default: 0 for GPU:0, -1 for CPU)')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='Dropout rate (default: 0.2)')
+    parser.add_argument('--project', type=str, default=None,
+                        help='Project name for saving outputs (optional)')
+    parser.add_argument('--name', type=str, default=None,
+                        help='Experiment name within project (optional)')
     
     # Augmentation parameters - these are optional and will use defaults from main file if not provided
     aug_group = parser.add_argument_group('Augmentation Parameters (optional)')
@@ -112,7 +116,9 @@ if __name__ == "__main__":
         "batch": args.batch,
         "patience": args.patience,
         "device": args.device,
-        "dropout": args.dropout
+        "dropout": args.dropout,
+        "project": args.project,
+        "name": args.name
     }
     
     # Create augmentations dictionary - only include provided parameters
@@ -137,10 +143,10 @@ if __name__ == "__main__":
             "val": str(splits_root / "val.txt"),
             "test": str(splits_root / "test.txt")
         }
-        main(image_root, args.output_dir, splits, training_parameter, model_name=args.model, augmentations=augmentations)
+        main(image_root, args.output_dir, splits, training_parameter, model_name=args.model, augmentations=augmentations, train_name=args.name)
     elif args.presplit_input:
         dataset_root = args.presplit_input
-        main(dataset_root, args.output_dir, training_parameter=training_parameter, model_name=args.model, augmentations=augmentations)
+        main(dataset_root, args.output_dir, training_parameter=training_parameter, model_name=args.model, augmentations=augmentations, train_name=args.name)
     elif args.excel_input:
         image_root, excel_path = args.excel_input
-        main(image_root, args.output_dir, training_parameter=training_parameter, excel_path=excel_path, model_name=args.model, augmentations=augmentations)
+        main(image_root, args.output_dir, training_parameter=training_parameter, excel_path=excel_path, model_name=args.model, augmentations=augmentations, train_name=args.name)

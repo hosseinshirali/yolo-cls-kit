@@ -39,6 +39,7 @@ dataset/
 test_run*/
 *_results/
 runs/
+output_dir*/
 
 # Images and visualizations
 *.jpg
