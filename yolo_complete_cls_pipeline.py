@@ -585,23 +585,35 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     ##################
     # Run inference on test dataset
     print(f"Running inference...")
-    results = model.predict(test_compose_folder,
+    results = model.predict(str(test_compose_folder),
                             name=test_name,  # Run name for this training session
-                            project=output_root,  # Save to project directory
+                            project=str(output_root),  # Save to project directory
                             save_txt=True)
     pred_folder = Path(results[0].save_dir)    
 
     pred = pd.DataFrame({'Classes': classes, 'Score': np.zeros(len(classes), dtype=float)})
 
     pred_results = pd.DataFrame(columns=['Filename', 'Label'])
-    image_paths = Path(test_compose_folder).glob('*.[jpg|png|PNG|tiff]*')
+    
+    # Count total number of images to process
+    image_list = list(Path(test_compose_folder).glob('*.[jpg|png|PNG|tiff]*'))
+    print(f"Found {len(image_list)} images in test_compose_folder for prediction")
 
     print(f"Using results from {pred_folder}")
 
-    for img_path in image_paths:
+    # Track images that don't have prediction files
+    missing_prediction_files = []
+    
+    for img_path in image_list:
         pred_ensemble = pred.copy()
 
         txt_path = pred_folder / 'labels' / img_path.with_suffix('.txt').name
+        
+        if not txt_path.exists():
+            print(f"WARNING: No prediction file found for {img_path.name}")
+            missing_prediction_files.append(img_path.name)
+            continue
+            
         with txt_path.open('r+') as txt_file:
             txt_pred = {}
             for txt_file_line in txt_file:
@@ -619,6 +631,25 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     print("Number of unique labels:", num_unique_labels)
     print("Unique predicted labels:", pred_results['Label'].unique())
     print("Expected classes:", classes)
+    
+    # Summary of prediction results
+    print(f"\nPrediction summary:")
+    print(f"Total images found in test folder: {len(test_images) if isinstance(test_images, list) else 'unknown'}")
+    print(f"Total images processed for prediction: {len(image_list)}")
+    print(f"Total predictions generated: {len(pred_results)}")
+    
+    if missing_prediction_files:
+        print(f"WARNING: {len(missing_prediction_files)} images had no prediction files")
+        if len(missing_prediction_files) <= 5:
+            print(f"Missing prediction files: {missing_prediction_files}")
+        else:
+            print(f"First 5 missing prediction files: {missing_prediction_files[:5]}")
+            
+    # Distribution of predicted labels
+    print("\nPredicted label distribution:")
+    pred_counts = pred_results['Label'].value_counts()
+    for label, count in pred_counts.items():
+        print(f"  {label}: {count}")
 
 
 
@@ -626,14 +657,39 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     ###################
     # PREPARE RESULTS #
     ###################
+    # Log the size of dataframes before any filtering
+    print(f"\nInitial ground truth dataframe size: {df_gt.shape}")
+    print(f"Initial predictions dataframe size: {pred_results.shape}")
+    
     # keep only rows of df_gt where 'Filename' is equal to 'file' in test_data_df
     df_gt = df_gt[df_gt['Filename'].isin(test_data_df['filename'].tolist())]
-    # Sort GT and Pred by 'Filename'
-    df_gt_sorted = df_gt.sort_values(by=['Filename']) 
-
-    # strip the Filename from its extension in pred_results
-    pred_results['Filename'] = pred_results['Filename'].str.split('.').str[0]
-
+    print(f"Ground truth dataframe after filtering: {df_gt.shape}")
+    
+    # Strip the Filename from its extension in pred_results
+    # Make a copy of the original filenames before modifying
+    pred_results['Original_Filename'] = pred_results['Filename']
+    pred_results['Filename'] = pred_results['Filename'].apply(lambda x: Path(x).stem)
+    print(f"Prediction results after filename stripping: {pred_results.shape}")
+    
+    # Check for any discrepancies between ground truth and prediction filenames
+    gt_filenames = set(df_gt['Filename'])
+    pred_filenames = set(pred_results['Filename'])
+    
+    missing_in_preds = gt_filenames - pred_filenames
+    missing_in_gt = pred_filenames - gt_filenames
+    common_filenames = gt_filenames.intersection(pred_filenames)
+    
+    print(f"\nFilename matching: {len(common_filenames)} files in both ground truth and predictions")
+    print(f"Files in ground truth but missing in predictions: {len(missing_in_preds)}")
+    print(f"Files in predictions but missing in ground truth: {len(missing_in_gt)}")
+    
+    if len(missing_in_preds) > 0:
+        print(f"Sample of files missing in predictions: {list(missing_in_preds)[:5]}")
+    if len(missing_in_gt) > 0:
+        print(f"Sample of files missing in ground truth: {list(missing_in_gt)[:5]}")
+    
+    # Sort both dataframes
+    df_gt_sorted = df_gt.sort_values(by=['Filename'])
     pred_results_sorted = pred_results.sort_values(by=['Filename'])
     # Comment: Align ground truth and predicted results in the same order.
 
@@ -650,8 +706,24 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     ####################
     # CONFUSION MATRIX #
     ####################    
-    # Merge the DataFrames on 'Filename'
+    # Merge the DataFrames on 'Filename' - use inner join to include only files with both predictions and ground truth
     merged_df = pd.merge(df_gt, pred_results, on='Filename', suffixes=('_gt', '_pred'))
+    
+    print(f"\nMerged DataFrame shape: {merged_df.shape}")
+    print(f"This means {merged_df.shape[0]} files were successfully matched between ground truth and predictions")
+    
+    if merged_df.shape[0] < len(gt_filenames) or merged_df.shape[0] < len(pred_filenames):
+        print(f"\nWARNING: The merged dataframe has fewer rows ({merged_df.shape[0]}) than the input dataframes.")
+        print(f"This indicates some files could not be matched between ground truth and predictions.")
+        
+        # Get counts of remaining files after the merge
+        remaining_gt = len(gt_filenames) - merged_df.shape[0]
+        remaining_pred = len(pred_filenames) - merged_df.shape[0]
+        
+        if remaining_gt > 0:
+            print(f"Files in ground truth but not matched in merge: {remaining_gt}")
+        if remaining_pred > 0:
+            print(f"Files in predictions but not matched in merge: {remaining_pred}")
     
     # Save predictions to Excel file
     predictions_df = merged_df[['Filename', 'Label_gt', 'Label_pred']].copy()
@@ -659,6 +731,9 @@ def run_postprocessing(model_path: str, test_data_folder: str, output_root: str,
     predictions_excel_path = output_root / 'predictions.xlsx'
     predictions_df.to_excel(predictions_excel_path, index=False)
     print(f"\nSaved predictions to: {predictions_excel_path}")
+    
+    print("\nGround truth labels:", merged_df['Label_gt'].unique())
+    print("Predicted labels:", merged_df['Label_pred'].unique())
     
     print("\nMerged DataFrame shape:", merged_df.shape)
     print("Ground truth labels:", merged_df['Label_gt'].unique())
