@@ -49,12 +49,16 @@ See yolo_complete_cls_pipeline.py for more details on the main function.
 def parse_args():
     parser = argparse.ArgumentParser(description='Run YOLO classification pipeline')
     
-    # Required output directory
-    parser.add_argument('output_dir', type=str,
-                        help='Directory for output files')
+    # Configuration file (optional - overrides other arguments)
+    parser.add_argument('--config', type=str,
+                        help='Path to YAML configuration file (optional)')
+    
+    # Output directory (can be in config or command line)
+    parser.add_argument('output_dir', type=str, nargs='?',
+                        help='Directory for output files (required unless using --config)')
     
     # Create a mutually exclusive group for the dataset input methods
-    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group = parser.add_mutually_exclusive_group(required=False)
     
     # Method 1: Structured dataset with split files
     input_group.add_argument('--splits-input', nargs=2, metavar=('IMAGE_ROOT', 'SPLITS_ROOT'),
@@ -87,6 +91,8 @@ def parse_args():
                         help='Project name for saving outputs (optional)')
     parser.add_argument('--name', type=str, default=None,
                         help='Experiment name within project (optional)')
+    parser.add_argument('--sample-size', type=int, default=30,
+                        help='Number of images for EigenCAM visualization (default: 30)')
     
     # Augmentation parameters - these are optional and will use defaults from main file if not provided
     aug_group = parser.add_argument_group('Augmentation Parameters (optional)')
@@ -109,44 +115,96 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     
-    # Create training parameters dictionary
-    training_parameter = {
-        "epochs": args.epochs,
-        "imgsz": args.imgsz,
-        "batch": args.batch,
-        "patience": args.patience,
-        "device": args.device,
-        "dropout": args.dropout,
-        "project": args.project,
-        "name": args.name
-    }
+    # Check if using config file
+    if args.config:
+        from yolo_complete_cls_pipeline import load_config
+        config = load_config(args.config)
+        
+        # Extract configuration
+        dataset_config = config.get('dataset', {})
+        output_config = config.get('output', {})
+        model_config = config.get('model', {})
+        training_config = config.get('training', {})
+        augmentations = config.get('augmentations', None)
+        postprocessing_config = config.get('postprocessing', {})
+        
+        # Determine dataset input method from config
+        if 'presplit_root' in dataset_config:
+            image_root = dataset_config['presplit_root']
+            splits = None
+            excel_path = None
+        elif 'excel_path' in dataset_config:
+            image_root = dataset_config['image_root']
+            splits = None
+            excel_path = dataset_config['excel_path']
+        elif 'splits' in dataset_config:
+            image_root = dataset_config['image_root']
+            splits = dataset_config['splits']
+            excel_path = None
+        else:
+            raise ValueError("Config file must specify dataset input method")
+        
+        # Setup parameters from config
+        output_dir = output_config.get('output_dir')
+        train_name = output_config.get('train_name')
+        test_name = output_config.get('test_name')
+        model_name = model_config.get('name', 'yolov8n-cls.pt')
+        sample_size = postprocessing_config.get('sample_size', 30)
+        
+        training_parameter = training_config
+        if 'device' in model_config:
+            training_parameter['device'] = model_config['device']
+        
+        # Run main with config parameters
+        main(image_root, output_dir, splits, training_parameter, excel_path, 
+             model_name, augmentations, train_name, test_name, sample_size)
     
-    # Create augmentations dictionary - only include provided parameters
-    augmentations = {}
-    aug_params = ['hsv_h', 'hsv_s', 'hsv_v', 'degrees', 'translate', 'scale', 
-                  'shear', 'perspective', 'flipud', 'fliplr', 'mosaic', 'mixup', 'copy_paste']
-    
-    for param in aug_params:
-        if getattr(args, param) is not None:
-            augmentations[param] = getattr(args, param)
-    
-    # If no augmentations provided, use None to trigger defaults in main()
-    if not augmentations:
-        augmentations = None
-    
-    # Determine which input method was chosen and set up variables accordingly
-    if args.splits_input:
-        image_root, splits_root = args.splits_input
-        splits_root = Path(splits_root)
-        splits = {
-            "train": str(splits_root / "train.txt"),
-            "val": str(splits_root / "val.txt"),
-            "test": str(splits_root / "test.txt")
+    else:
+        # Original command-line argument handling
+        if not args.output_dir:
+            raise ValueError("output_dir is required when not using --config")
+        
+        # Create training parameters dictionary
+        training_parameter = {
+            "epochs": args.epochs,
+            "imgsz": args.imgsz,
+            "batch": args.batch,
+            "patience": args.patience,
+            "device": args.device,
+            "dropout": args.dropout,
+            "project": args.project,
+            "name": args.name
         }
-        main(image_root, args.output_dir, splits, training_parameter, model_name=args.model, augmentations=augmentations, train_name=args.name)
-    elif args.presplit_input:
-        dataset_root = args.presplit_input
-        main(dataset_root, args.output_dir, training_parameter=training_parameter, model_name=args.model, augmentations=augmentations, train_name=args.name)
-    elif args.excel_input:
-        image_root, excel_path = args.excel_input
-        main(image_root, args.output_dir, training_parameter=training_parameter, excel_path=excel_path, model_name=args.model, augmentations=augmentations, train_name=args.name)
+        
+        # Create augmentations dictionary - only include provided parameters
+        augmentations = {}
+        aug_params = ['hsv_h', 'hsv_s', 'hsv_v', 'degrees', 'translate', 'scale', 
+                      'shear', 'perspective', 'flipud', 'fliplr', 'mosaic', 'mixup', 'copy_paste']
+        
+        for param in aug_params:
+            if getattr(args, param) is not None:
+                augmentations[param] = getattr(args, param)
+        
+        # If no augmentations provided, use None to trigger defaults in main()
+        if not augmentations:
+            augmentations = None
+        
+        # Determine which input method was chosen and set up variables accordingly
+        if args.splits_input:
+            image_root, splits_root = args.splits_input
+            splits_root = Path(splits_root)
+            splits = {
+                "train": str(splits_root / "train.txt"),
+                "val": str(splits_root / "val.txt"),
+                "test": str(splits_root / "test.txt")
+            }
+            main(image_root, args.output_dir, splits, training_parameter, model_name=args.model, 
+                 augmentations=augmentations, train_name=args.name, sample_size=args.sample_size)
+        elif args.presplit_input:
+            dataset_root = args.presplit_input
+            main(dataset_root, args.output_dir, training_parameter=training_parameter, model_name=args.model, 
+                 augmentations=augmentations, train_name=args.name, sample_size=args.sample_size)
+        elif args.excel_input:
+            image_root, excel_path = args.excel_input
+            main(image_root, args.output_dir, training_parameter=training_parameter, excel_path=excel_path, 
+                 model_name=args.model, augmentations=augmentations, train_name=args.name, sample_size=args.sample_size)

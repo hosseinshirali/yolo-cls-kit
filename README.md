@@ -4,15 +4,23 @@ A comprehensive pipeline for training and evaluating YOLO classification models 
 
 ## Features
 
-- Support for three dataset input methods:
+- **Multiple Dataset Input Methods:**
   1. Class-organized dataset with text split files
   2. Pre-split dataset (train/val/test folders)
   3. Flat dataset with Excel metadata
-- Automated dataset preparation
-- Model training with customizable parameters
-- Post-processing and evaluation
-- Explainability with EigenCAM
-- Support for different YOLO models (YOLOv8, YOLO11, etc.)
+- **YAML Configuration Support:** Define all parameters in a config file
+- **Comprehensive Logging:** Automatic logging to file and console
+- **Input Validation:** Pre-flight checks to catch errors early
+- **Automated Dataset Preparation:** Handles various dataset formats
+- **Model Training:** Customizable parameters and augmentations
+- **Post-processing and Evaluation:**
+  - Confusion matrix visualization
+  - Classification reports
+  - Prediction results saved to Excel
+- **Explainability:** EigenCAM visualizations for model interpretability
+- **Memory Optimization:** Automatic cleanup after intensive operations
+- **Progress Tracking:** Rich progress bars for long operations
+- **Support for Multiple YOLO Models:** YOLOv8, YOLO11, and custom models
 
 ## Setup
 
@@ -132,13 +140,54 @@ Excel file format:
 
 ## Usage
 
-### Command Line
+### Quick Start with Configuration File (Recommended)
 
-Run the pipeline from the command line using `run_pipeline.py`:
+The easiest way to run the pipeline is using a YAML configuration file:
+
+```bash
+# Create a config file from the example
+cp config_example.yaml my_config.yaml
+
+# Edit my_config.yaml with your settings
+
+# Run the pipeline
+python run_pipeline.py --config my_config.yaml
+```
+
+**Example config_example.yaml:**
+```yaml
+dataset:
+  presplit_root: "dataset/smnk_split"
+
+output:
+  output_dir: "output_dir/run1"
+
+model:
+  name: "yolov8n-cls.pt"
+  device: 0
+
+training:
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  patience: 10
+  dropout: 0.3
+
+augmentations:
+  fliplr: 0.5
+  scale: 0.5
+
+postprocessing:
+  sample_size: 30  # Number of images for EigenCAM visualization
+```
+
+### Command Line Usage
+
+You can also run the pipeline directly from command line:
 
 ```bash
 # Method 1: Class-organized with text split files
-python run_pipeline.py output_dir --splits-input path/to/images path/to/splits_dir --model yolov8s-cls.pt
+python run_pipeline.py output_dir --splits-input path/to/images path/to/splits_dir --model yolov8s-cls.pt --sample-size 50
 
 # Method 2: Pre-split dataset
 python run_pipeline.py output_dir --presplit-input path/to/presplit_dataset --model yolov8l-cls.pt
@@ -153,7 +202,8 @@ Customize training parameters:
 
 ```bash
 python run_pipeline.py output_dir --splits-input path/to/images path/to/splits_dir \
-  --epochs 100 --imgsz 224 --batch 32 --patience 15 --dropout 0.3 --device 0
+  --epochs 100 --imgsz 224 --batch 32 --patience 15 --dropout 0.3 --device 0 \
+  --sample-size 50
 ```
 
 ### Augmentation Parameters
@@ -214,16 +264,25 @@ The pipeline creates the following output structure:
 
 ```
 output_dir/
-  ├── train_results/            # Training results
-  │   ├── weights/              # Trained model weights
-  │   │   ├── best.pt           # Best model weights
-  │   │   └── last.pt           # Last model weights
-  │   └── ...                   # Training logs and plots
-  ├── test_results/             # Testing results
-  │   └── labels/               # Prediction labels
-  ├── confusion_matrix.png      # Confusion matrix visualization
-  ├── classification_report.txt # Detailed metrics
-  └── cam_*.jpg                 # EigenCAM visualizations
+  ├── train_results/              # Training results
+  │   ├── weights/                # Trained model weights
+  │   │   ├── best.pt             # Best model weights (use this for evaluation!)
+  │   │   └── last.pt             # Last epoch weights
+  │   ├── args.yaml               # Training arguments
+  │   ├── results.csv             # Training metrics per epoch
+  │   ├── val_results/            # Validation evaluation (FOR BENCHMARKING!)
+  │   │   ├── validation_metrics.txt  # Top-1 and Top-5 accuracy
+  │   │   ├── confusion_matrix.png    # Validation confusion matrix
+  │   │   └── ...                     # Other validation plots
+  │   ├── test_results/           # Test evaluation (detailed analysis)
+  │   │   ├── labels/             # Prediction label files
+  │   │   ├── confusion_matrix.png    # Test confusion matrix
+  │   │   ├── classification_report.txt  # Detailed test metrics
+  │   │   ├── predictions.xlsx         # Test predictions with ground truth
+  │   │   └── eigencam/                # EigenCAM visualizations
+  │   │       ├── cam_image1.jpg
+  │   │       └── ...
+  │   └── pipeline_*.log          # Execution log (timestamped)
 ```
 
 ## Models
@@ -240,16 +299,103 @@ The pipeline supports various YOLO classification models:
   - yolo11n.pt (nano)
   - etc.
 
+## Logging
+
+The pipeline automatically creates detailed logs:
+
+- **Console Output:** INFO level messages displayed during execution
+- **Log File:** Detailed logs saved to `yolo_pipeline_YYYYMMDD_HHMMSS.log`
+- **Log Levels:** DEBUG, INFO, WARNING, ERROR
+
+To view logs:
+```bash
+# View latest log
+tail -f yolo_pipeline_*.log
+
+# Search for errors
+grep ERROR yolo_pipeline_*.log
+
+# Search for warnings
+grep WARNING yolo_pipeline_*.log
+```
+
+## Evaluation Methodology
+
+The pipeline performs two separate evaluations after training:
+
+### 1. Validation Evaluation (STEP 1)
+**Purpose:** For model benchmarking and comparison  
+**Method:** Uses YOLO's built-in `.val()` method  
+**Output:** `val_results/validation_metrics.txt`  
+**Metrics:**
+- Top-1 Accuracy (main metric for benchmarking)
+- Top-5 Accuracy
+- Confusion matrix
+
+⚠️ **Important:** Always use validation results for model benchmarking, NOT test results!
+
+### 2. Test Evaluation (STEP 2)
+**Purpose:** Detailed analysis and model interpretability  
+**Method:** Custom inference + sklearn metrics + EigenCAM  
+**Output:** `test_results/`  
+**Includes:**
+- Confusion matrix
+- Classification report (precision, recall, F1-score per class)
+- Predictions Excel file
+- EigenCAM visualizations
+
+## Output Files
+
+After training and evaluation, you'll find:
+
+```
+output_dir/
+├── train_results/
+│   ├── weights/
+│   │   ├── best.pt                      # Best model checkpoint
+│   │   └── last.pt                      # Last epoch checkpoint
+│   ├── val_results/                     # ⭐ USE THESE FOR BENCHMARKING
+│   │   ├── validation_metrics.txt       # Top-1 and Top-5 accuracy
+│   │   ├── confusion_matrix.png         # Validation confusion matrix
+│   │   └── ...                          # Other YOLO plots
+│   ├── test_results/                    # Detailed analysis
+│   │   ├── labels/                      # Prediction label files
+│   │   ├── confusion_matrix.png         # Test confusion matrix
+│   │   ├── classification_report.txt    # Per-class metrics
+│   │   ├── predictions.xlsx             # All predictions with ground truth
+│   │   └── eigencam/                    # Model interpretability
+│   │       ├── cam_image1.jpg
+│   │       └── ...
+│   ├── args.yaml                        # Training arguments
+│   ├── results.csv                      # Training metrics per epoch
+│   └── pipeline_*.log                   # Execution log
+```
+
 ## Troubleshooting
 
 ### CUDA Issues
+
 - If you encounter CUDA errors, verify your CUDA and PyTorch versions are compatible
 - Try setting `device=-1` to force CPU usage if GPU issues persist
 
 ### Memory Errors
+
 - Reduce batch size (`--batch`) for large models or limited memory
 - Lower image size (`--imgsz`) to reduce memory requirements
+- Reduce EigenCAM sample size (`--sample-size`)
+
+### Missing Predictions
+
+- If more than 10% of test images have no predictions, the pipeline will raise an error
+- Check that your model is compatible with the image formats
+- Verify test images are valid and readable
+
+### Input Validation Errors
+
+- The pipeline validates all inputs before processing
+- Check error messages for specific missing files or directories
+- Verify Excel files have required columns: `filename`, `label`, `phase`
 
 ## License
 
-[MIT License](LICENSE) 
+[MIT License](LICENSE)

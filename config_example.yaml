@@ -1,0 +1,77 @@
+# Example configuration file for YOLO Classification Pipeline
+# You can use this instead of command-line arguments
+
+# Dataset configuration
+dataset:
+  # Choose one of the following dataset input methods:
+  
+  # Method 1: Class-organized with text split files
+  # image_root: "path/to/images"
+  # splits:
+  #   train: "path/to/train.txt"
+  #   val: "path/to/val.txt"
+  #   test: "path/to/test.txt"
+  
+  # Method 2: Pre-split dataset (train/val/test folders)
+  # presplit_root: "path/to/presplit_dataset"
+  
+  # Method 3: Flat dataset with Excel metadata
+  # image_root: "path/to/all_images"
+  # excel_path: "path/to/metadata.xlsx"
+  
+  # Example for pre-split dataset:
+  presplit_root: "dataset/smnk_split"
+
+# Output configuration
+output:
+  output_dir: "output_dir/run1_smnk_split"
+  train_name: "train_results"  # Optional, default: train_results
+  test_name: "test_results"    # Optional, default: test_results
+
+# Model configuration
+model:
+  name: "yolov8n-cls.pt"  # Model name or path
+  device: [-1,-1]                # GPU device (0, 1, etc.) or -1 for CPU
+  cache: false  # Whether to cache images during training
+  workers: 8
+
+
+# Training parameters
+training:
+  epochs: 5
+  imgsz: 640
+  optimizer: 'auto'
+  batch: 32 #Auto Mode (60% GPU Memory): Use batch=-1 to automatically adjust batch size for approximately 60% CUDA memory utilization.
+  patience: 5
+  dropout: 0.3
+  resume: False
+  freeze: None  # Number of layers to freeze (0 = none)
+  
+
+# Augmentation parameters (all optional)
+augmentations:
+  hsv_h: 0.015      # HSV-Hue augmentation
+  hsv_s: 0.7        # HSV-Saturation augmentation
+  hsv_v: 0.4        # HSV-Value augmentation
+  degrees: 0.0      # Image rotation (degrees)
+  translate: 0.1    # Image translation fraction
+  scale: 0.5        # Image scale fraction
+  shear: 0.0        # Image shear (degrees)
+  perspective: 0.0  # Image perspective fraction
+  flipud: 0.0       # Vertical flip probability
+  fliplr: 0.5       # Horizontal flip probability
+  mosaic: 1.0       # Mosaic augmentation probability
+  mixup: 0.0        # Mixup augmentation probability
+  copy_paste: 0.0   # Copy-paste augmentation probability
+  auto_augment: 'autoaugment'  # Whether to use auto-augmentation or None
+  erasing: 0.4      # Random erasing probability
+
+
+# Postprocessing parameters
+postprocessing:
+  sample_size: 10  # Number of images for EigenCAM visualization
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: "pipeline.log"  # Log file name (optional)
