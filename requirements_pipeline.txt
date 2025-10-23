@@ -1,9 +1,6 @@
 # Main dependencies for the YOLO classification pipeline
 # PyTorch installation (adjust based on your CUDA version)
 # Install using: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
-# Main dependencies for the YOLO classification pipeline
-# PyTorch installation (adjust based on your CUDA version)
-# Install using: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 ultralytics
 pandas
 numpy
@@ -15,3 +12,14 @@ opencv-python
 ttach
 pyyaml
 openpyxl
+psutil  # For system RAM monitoring during Ray Tune optimization
+
+# Hyperparameter Optimization
+# Ray Tune (original - still supported)
+ray[tune]>=2.9.0
+
+# Optuna (NEW - advanced HPO with more features)
+optuna>=3.0.0
+optuna-dashboard>=0.13.0  # Optional: web dashboard for monitoring
+plotly>=5.0.0             # For interactive visualizations
+kaleido>=0.2.1            # For exporting plots to static images

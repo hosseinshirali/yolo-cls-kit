@@ -8,6 +8,7 @@ A comprehensive pipeline for training and evaluating YOLO classification models 
   1. Class-organized dataset with text split files
   2. Pre-split dataset (train/val/test folders)
   3. Flat dataset with Excel metadata
+- **🆕 Hyperparameter Optimization:** Automatic tuning of learning rates, augmentations, and more (see [OPTIMIZATION_GUIDE.md](OPTIMIZATION_GUIDE.md))
 - **YAML Configuration Support:** Define all parameters in a config file
 - **Comprehensive Logging:** Automatic logging to file and console
 - **Input Validation:** Pre-flight checks to catch errors early
@@ -35,8 +36,8 @@ For GPU acceleration, install the appropriate CUDA version for your PyTorch/YOLO
    ```
 
 2. Install the compatible CUDA version:
-   - For YOLOv8 (PyTorch 2.0+): CUDA 11.7 or CUDA 12.1
-   - For YOLO11: CUDA 12.1
+   - For YOLOv8 (PyTorch 2.0+): CUDA 11.7 or CUDA 12.8
+   - For YOLO11: CUDA 12.8
 
 3. Download and install from [NVIDIA CUDA Downloads](https://developer.nvidia.com/cuda-downloads)
 
@@ -46,13 +47,11 @@ Create and activate a virtual environment:
 
 ```bash
 # Create a virtual environment
-python -m venv yolo_cls_env
+conda create -n yolo_cls_env python=3.10 -y
 
-# Activate on Windows
-yolo_cls_env\Scripts\activate
+# Activate 
+conda activate yolo_cls_env
 
-# Activate on Linux/MacOS
-source yolo_cls_env/bin/activate
 ```
 
 ### Dependencies
@@ -185,7 +184,30 @@ augmentations:
 
 postprocessing:
   sample_size: 30  # Number of images for EigenCAM visualization
+
+# NEW: Hyperparameter Optimization (Optional)
+optimization:
+  enabled: false  # Set to true to enable
+  iterations: 10
+  tune_epochs: 30
 ```
+
+### 🆕 Hyperparameter Optimization
+
+To enable automatic hyperparameter optimization, simply set `optimization.enabled: true` in your config file. The pipeline will:
+1. Test different hyperparameter combinations
+2. Find the best configuration for your dataset
+3. Automatically apply it to the final training
+
+**Quick optimization example:**
+```yaml
+optimization:
+  enabled: true
+  iterations: 10  # Number of trials
+  tune_epochs: 30  # Faster epochs per trial
+```
+
+For detailed information, see **[OPTIMIZATION_GUIDE.md](OPTIMIZATION_GUIDE.md)**.
 
 
 ### Command Line Usage

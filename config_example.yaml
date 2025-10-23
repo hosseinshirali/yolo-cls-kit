@@ -24,22 +24,22 @@ dataset:
 
 # Output configuration
 output:
-  output_dir: "output_dir/agrilus1"
+  output_dir: "output_dir/agrilus"
   train_name: "train_results"  # Optional, default: train_results
   test_name: "test_results"    # Optional, default: test_results
 
 # Model configuration
 model:
-  name: "yolov8x-cls.pt"  # Model name or path
+  name: "yolov8l-cls.pt"  # Model name or path
   device: [-1,-1]                # GPU device (0, 1, etc.) or -1 for CPU
   cache: false  # Whether to cache images during training
-  workers: 8
+  workers: 4
 
 
 # Training parameters
 training:
   epochs: 150
-  imgsz: 640
+  imgsz: 224
   optimizer: 'auto'
   batch: 32 #Auto Mode (60% GPU Memory): Use batch=-1 to automatically adjust batch size for approximately 60% CUDA memory utilization.
   patience: 15
@@ -70,6 +70,119 @@ augmentations:
 # Postprocessing parameters
 postprocessing:
   sample_size: 20  # Number of images for EigenCAM visualization
+
+# Hyperparameter Optimization Configuration
+optimization:
+  enabled: true  # Set to true to enable hyperparameter optimization
+  iterations: 100  # Number of optimization trials
+  
+  # ============================================================================
+  # OPTIMIZER SELECTION: Choose your HPO backend
+  # ============================================================================
+  # Option 1: Ray Tune (Original)
+  use_ray: false   # Use Ray Tune for optimization
+  
+  # Option 2: Optuna (NEW - RECOMMENDED)
+  use_optuna: true  # Use Optuna for optimization (advanced features)
+  
+  # NOTE: If both are true, Optuna takes priority
+  #       If both are false, simple random search is used
+  
+  # ============================================================================
+  # COMMON SETTINGS (Both Ray Tune and Optuna)
+  # ============================================================================
+  num_gpus: 1     # Number of GPUs available (1 for single GPU, 2+ for multi-GPU)
+  tune_epochs: 30  # Epochs for each optimization trial
+  metric: 'metrics/accuracy_top1'  # Metric to optimize
+  
+  # ============================================================================
+  # OPTUNA-SPECIFIC SETTINGS (only used when use_optuna=true)
+  # ============================================================================
+  # Study name (optional) - used for SQLite database filename
+  # If not specified, auto-generated: yolo_optuna_YYYYMMDD_HHMMSS
+  study_name: 'agrilus_optuna'
+  
+  # Pruning strategy for early stopping
+  # Options: 'median', 'hyperband', 'none'
+  # - 'median': Stops trials if metric is below median of completed trials
+  # - 'hyperband': Aggressive pruning using successive halving
+  # - 'none': No early stopping
+  pruner: 'median'
+  
+  # Sampling algorithm for hyperparameter selection
+  # Options: 'tpe', 'random', 'cmaes'
+  # - 'tpe': Tree-structured Parzen Estimator (smart Bayesian optimization)
+  # - 'random': Random sampling
+  # - 'cmaes': Covariance Matrix Adaptation Evolution Strategy
+  sampler: 'tpe'
+  
+  # Parallel trials (only for multi-GPU)
+  # Set to 1 for sequential trials (safe for single GPU)
+  # Set to num_gpus for maximum parallelism
+  parallel_trials: 1
+  
+  # Enable interactive HTML visualizations (7+ plots)
+  enable_visualization: true
+  
+  # ============================================================================
+  # RAY TUNE SPECIFIC SETTINGS (only used when use_ray=true)
+  # ============================================================================
+  # IMPORTANT GPU MEMORY NOTES:
+  # - With num_gpus=1: Ray automatically runs trials SEQUENTIALLY
+  # - With num_gpus=2+: Ray runs trials in PARALLEL (one trial per GPU)
+  # - Batch size is automatically reduced during optimization to prevent OOM
+  
+  search_strategy: 'random'  # 'random' or 'grid' (for simple mode without Ray)
+  
+  # ============================================================================
+  # HYPERPARAMETERS TO OPTIMIZE
+  # ============================================================================
+  # NOTE: Only parameters listed here will be optimized.
+  #       All other parameters from 'training' and 'augmentations' sections 
+  #       will be preserved.
+  hyperparameters:
+    # Optimizer selection - choose from available optimizers
+    optimizer: ['SGD', 'Adam', 'AdamW', 'RMSProp']  # List of optimizers to try
+    
+    # Freeze layers - number of layers to freeze during training (0 = none)
+    freeze: [0, 10]  # Range [min, max] - try freezing 0 to 10 layers
+    
+    # Learning rate parameters
+    lr0: [0.0001, 0.01]  # Initial learning rate range [min, max]
+    lrf: [0.01, 0.1]     # Final learning rate factor range [min, max]
+    
+    # Optimizer parameters
+    momentum: [0.8, 0.95]      # Momentum range [min, max]
+    weight_decay: [0.0001, 0.001]  # Weight decay range [min, max]
+    
+    # Training parameters
+    warmup_epochs: [1, 5]      # Warmup epochs range [min, max]
+    warmup_momentum: [0.5, 0.9]  # Warmup momentum range [min, max]
+    
+    # Dropout (if you want to tune it)
+    dropout: [0.0, 0.5]  # Dropout rate range [min, max]
+    
+    # Augmentation parameters to optimize
+    augmentation:
+      # Auto-augmentation strategy
+      auto_augment: ['autoaugment', 'randaugment', 'augmix', null]  # null means no auto-augment
+      
+      # Random erasing
+      erasing: [0.0, 0.5]  # Random erasing probability range [min, max]
+      
+      # Color augmentations
+      # hsv_h: [0.0, 0.03]      # HSV-Hue range [min, max]
+      # hsv_s: [0.5, 0.9]       # HSV-Saturation range [min, max]
+      # hsv_v: [0.3, 0.6]       # HSV-Value range [min, max]
+      
+      # # Geometric augmentations
+      # degrees: [0.0, 15.0]    # Rotation degrees range [min, max]
+      # translate: [0.0, 0.2]   # Translation range [min, max]
+      # scale: [0.1, 0.7]       # Scale range [min, max]
+      
+      # # Flip probabilities
+      # flipud: [0.0, 0.5]      # Vertical flip probability range [min, max]
+      # fliplr: [0.0, 0.5]      # Horizontal flip probability range [min, max]
 
 # Logging configuration
 logging:

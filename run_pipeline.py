@@ -127,6 +127,7 @@ if __name__ == "__main__":
         training_config = config.get('training', {})
         augmentations = config.get('augmentations', None)
         postprocessing_config = config.get('postprocessing', {})
+        optimization_config = config.get('optimization', None)  # Get optimization config
         
         # Determine dataset input method from config
         if 'presplit_root' in dataset_config:
@@ -155,9 +156,9 @@ if __name__ == "__main__":
         if 'device' in model_config:
             training_parameter['device'] = model_config['device']
         
-        # Run main with config parameters
+        # Run main with config parameters (including optimization_config)
         main(image_root, output_dir, splits, training_parameter, excel_path, 
-             model_name, augmentations, train_name, test_name, sample_size)
+             model_name, augmentations, train_name, test_name, sample_size, optimization_config)
     
     else:
         # Original command-line argument handling

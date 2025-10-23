@@ -34,6 +34,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import hyperparameter optimizer (after logger is defined)
+# Support both Ray Tune (original) and Optuna (new)
+try:
+    from yolo_hyperparameter_optimizer_simple import (
+        YOLOHyperparameterOptimizer,
+        load_best_hyperparameters,
+        apply_optimized_hyperparameters
+    )
+    OPTIMIZER_AVAILABLE = True
+except ImportError:
+    OPTIMIZER_AVAILABLE = False
+
+try:
+    from yolo_hyperparameter_optimizer_optuna import (
+        YOLOOptunaOptimizer,
+        load_best_hyperparameters as load_best_hyperparameters_optuna,
+        apply_optimized_hyperparameters as apply_optimized_hyperparameters_optuna
+    )
+    OPTUNA_AVAILABLE = True
+except ImportError:
+    OPTUNA_AVAILABLE = False
+
+
 # Global constants
 IMAGE_EXTENSIONS = [
     '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', 
@@ -1106,6 +1129,182 @@ def apply_eigencam(model, image_path, output_dir, target=-2, task='cls', show=Fa
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
         plt.imsave(str(cam_image_save_path), cam_image)
+
+
+def run_hyperparameter_optimization(
+    dataset_path: Union[str, Path],
+    output_dir: Union[str, Path],
+    model_name: str,
+    optimization_config: Dict[str, Any],
+    base_training_params: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """
+    Run hyperparameter optimization for YOLO classification.
+    
+    Supports two optimization backends:
+    1. Ray Tune (original) - use_ray=True
+    2. Optuna (new) - use_optuna=True
+    
+    Args:
+        dataset_path: Path to the dataset (with train/val/test folders)
+        output_dir: Directory to save optimization results
+        model_name: YOLO model name or path
+        optimization_config: Configuration for optimization
+        base_training_params: Base training parameters
+        
+    Returns:
+        Dictionary with best hyperparameters or None if optimization is disabled
+    """
+    if not OPTIMIZER_AVAILABLE and not OPTUNA_AVAILABLE:
+        logger.error("No hyperparameter optimizer available. Install ray[tune] or optuna.")
+        return None
+    
+    if not optimization_config.get('enabled', False):
+        logger.info("Hyperparameter optimization is disabled")
+        return None
+    
+    logger.info("\n" + "="*80)
+    logger.info("HYPERPARAMETER OPTIMIZATION PHASE")
+    logger.info("="*80)
+    
+    # Log available optimizers (only once, here)
+    available_opts = []
+    if OPTUNA_AVAILABLE:
+        available_opts.append("Optuna")
+    if OPTIMIZER_AVAILABLE:
+        available_opts.append("Ray Tune")
+    logger.info(f"Available optimizers: {', '.join(available_opts)}")
+    
+    # For YOLO classification, we use the dataset path directly
+    # YOLO will automatically detect train/val/test folders
+    dataset_path = Path(dataset_path)
+    
+    # Setup optimization directory
+    opt_output_dir = Path(output_dir) / "hyperparameter_optimization"
+    opt_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Get optimization parameters
+    iterations = optimization_config.get('iterations', 10)
+    tune_epochs = optimization_config.get('tune_epochs', 30)
+    search_strategy = optimization_config.get('search_strategy', 'random')
+    metric = optimization_config.get('metric', 'metrics/accuracy_top1')
+    hyperparams_config = optimization_config.get('hyperparameters', {})
+    num_gpus = optimization_config.get('num_gpus', 1)
+    
+    # Determine which optimizer to use
+    use_optuna = optimization_config.get('use_optuna', False)
+    use_ray = optimization_config.get('use_ray', False)
+    
+    # Priority: Optuna > Ray Tune > fallback
+    if use_optuna and OPTUNA_AVAILABLE:
+        logger.info("="*80)
+        logger.info("Using OPTUNA for hyperparameter optimization")
+        logger.info("="*80)
+        
+        # Initialize Optuna optimizer
+        optimizer = YOLOOptunaOptimizer(
+            dataset_yaml=str(dataset_path),
+            model_name=model_name,
+            output_dir=str(opt_output_dir),
+            study_name=optimization_config.get('study_name', None)
+        )
+        
+        # Get Optuna-specific parameters
+        pruner = optimization_config.get('pruner', 'median')  # 'median', 'hyperband', 'none'
+        sampler = optimization_config.get('sampler', 'tpe')  # 'tpe', 'random', 'cmaes'
+        parallel_trials = optimization_config.get('parallel_trials', 1)
+        enable_visualization = optimization_config.get('enable_visualization', True)
+        
+        logger.info(f"Optuna Configuration:")
+        logger.info(f"  - Pruner: {pruner}")
+        logger.info(f"  - Sampler: {sampler}")
+        logger.info(f"  - GPUs: {num_gpus}")
+        logger.info(f"  - Parallel trials: {parallel_trials}")
+        logger.info(f"  - Visualizations: {enable_visualization}")
+        
+        results = optimizer.optimize(
+            hyperparams_config=hyperparams_config,
+            base_training_params=base_training_params,
+            iterations=iterations,
+            tune_epochs=tune_epochs,
+            metric=metric,
+            pruner=pruner,
+            num_gpus=num_gpus,
+            parallel_trials=parallel_trials,
+            sampler=sampler,
+            enable_visualization=enable_visualization
+        )
+        
+    elif use_ray and OPTIMIZER_AVAILABLE:
+        logger.info("="*80)
+        logger.info("Using RAY TUNE for hyperparameter optimization")
+        logger.info("="*80)
+        
+        # Initialize Ray Tune optimizer
+        optimizer = YOLOHyperparameterOptimizer(
+            dataset_yaml=str(dataset_path),
+            model_name=model_name,
+            output_dir=str(opt_output_dir),
+            use_ray=True
+        )
+        
+        logger.info(f"Ray Tune Configuration:")
+        logger.info(f"  - GPUs: {num_gpus}")
+        if num_gpus == 1:
+            logger.info("  - Single GPU mode: Trials will run sequentially")
+        else:
+            logger.info(f"  - Multi-GPU mode: Up to {num_gpus} trials in parallel")
+        
+        results = optimizer.optimize_with_ray(
+            hyperparams_config=hyperparams_config,
+            base_training_params=base_training_params,
+            iterations=iterations,
+            tune_epochs=tune_epochs,
+            metric=metric,
+            num_gpus=num_gpus
+        )
+        
+    else:
+        # Fallback to simple random search (no Ray Tune or Optuna)
+        logger.info("="*80)
+        logger.info("Using SIMPLE RANDOM SEARCH (no Ray Tune or Optuna)")
+        logger.info("="*80)
+        
+        if not OPTIMIZER_AVAILABLE:
+            logger.error("Simple optimizer not available either. Please install ray[tune] or optuna.")
+            return None
+        
+        optimizer = YOLOHyperparameterOptimizer(
+            dataset_yaml=str(dataset_path),
+            model_name=model_name,
+            output_dir=str(opt_output_dir),
+            use_ray=False
+        )
+        
+        logger.info(f"Random Search Configuration:")
+        logger.info(f"  - Strategy: {search_strategy}")
+        logger.info(f"  - Trials will run SEQUENTIALLY (GPU safe)")
+        
+        results = optimizer.optimize(
+            hyperparams_config=hyperparams_config,
+            base_training_params=base_training_params,
+            iterations=iterations,
+            tune_epochs=tune_epochs,
+            strategy=search_strategy,
+            metric=metric
+        )
+    
+    logger.info("\n" + "="*80)
+    logger.info("OPTIMIZATION COMPLETED")
+    logger.info("="*80)
+    
+    # Return best hyperparameters
+    if 'best_hyperparameters' in results:
+        return results['best_hyperparameters']
+    else:
+        logger.warning("No best hyperparameters found in optimization results")
+        return None
+
         logger.debug(f"Saved EigenCAM to: {cam_image_save_path}")
     
     plt.close()  # Close figure to free memory
@@ -1120,15 +1319,17 @@ def main(
     augmentations: Optional[Dict[str, Any]] = None, 
     train_name: Optional[str] = None, 
     test_name: Optional[str] = None,
-    sample_size: int = 30
+    sample_size: int = 30,
+    optimization_config: Optional[Dict[str, Any]] = None
 ) -> None:
     """
     Main pipeline to train and evaluate YOLO classification models.
     
     The pipeline performs:
-    1. Training on train set
-    2. Validation evaluation (for benchmarking) - uses YOLO's .val() method
-    3. Test evaluation (detailed analysis) - includes confusion matrix, classification report, EigenCAM
+    1. (Optional) Hyperparameter optimization
+    2. Training on train set with optimized or default hyperparameters
+    3. Validation evaluation (for benchmarking) - uses YOLO's .val() method
+    4. Test evaluation (detailed analysis) - includes confusion matrix, classification report, EigenCAM
 
     Args:
         image_root: Root directory containing images or pre-split dataset
@@ -1141,8 +1342,10 @@ def main(
         train_name: Name for training results folder (default: train_results)
         test_name: Name for test results folder (default: test_results)
         sample_size: Number of images for EigenCAM visualization (default: 30)
+        optimization_config: Hyperparameter optimization configuration (optional)
         
     Outputs:
+        - hyperparameter_optimization/: (if enabled) Optimization results and best hyperparameters
         - train_results/: Training metrics and checkpoints (best.pt, last.pt)
         - val_results/: Validation metrics (use these for benchmarking!)
         - test_results/: Detailed test analysis (confusion matrix, classification report, EigenCAM)
@@ -1223,9 +1426,41 @@ def main(
     # Variable to hold Excel data if we're using that method
     excel_df = None
     
+    # Variable to hold dataset path for optimization
+    dataset_for_optimization = None
+    
     if dataset_type == "presplit":
-        # For pre-split datasets, we can train directly on the original dataset
+        # For pre-split datasets, we can use it directly for optimization
         presplit_dataset_path = Path(image_root)
+        dataset_for_optimization = presplit_dataset_path
+        
+        # Run hyperparameter optimization if enabled
+        best_hyperparams = None
+        if optimization_config and optimization_config.get('enabled', False):
+            best_hyperparams = run_hyperparameter_optimization(
+                dataset_path=dataset_for_optimization,
+                output_dir=output_dir,
+                model_name=model_name,
+                optimization_config=optimization_config,
+                base_training_params=training_parameter
+            )
+            
+            # Apply optimized hyperparameters if found
+            if best_hyperparams and OPTIMIZER_AVAILABLE:
+                logger.info("Applying optimized hyperparameters to training...")
+                training_parameter, augmentations = apply_optimized_hyperparameters(
+                    training_parameter, augmentations, best_hyperparams
+                )
+                
+                # Save applied configuration
+                applied_config_path = output_dir / "applied_hyperparameters.yaml"
+                with open(applied_config_path, 'w') as f:
+                    yaml.dump({
+                        'training_parameters': training_parameter,
+                        'augmentations': augmentations,
+                        'source': 'optimization'
+                    }, f, default_flow_style=False)
+                logger.info(f"Applied configuration saved to: {applied_config_path}")
         
         # Train YOLO model directly on the pre-split dataset
         # Use output_dir as project and train_name as the experiment name
@@ -1308,6 +1543,37 @@ def main(
         else:
             print(f"Unknown dataset type. Please provide valid dataset input.")
             return
+        
+        # Set dataset for optimization
+        dataset_for_optimization = temp_dataset_path
+        
+        # Run hyperparameter optimization if enabled
+        best_hyperparams = None
+        if optimization_config and optimization_config.get('enabled', False):
+            best_hyperparams = run_hyperparameter_optimization(
+                dataset_path=dataset_for_optimization,
+                output_dir=output_dir,
+                model_name=model_name,
+                optimization_config=optimization_config,
+                base_training_params=training_parameter
+            )
+            
+            # Apply optimized hyperparameters if found
+            if best_hyperparams and OPTIMIZER_AVAILABLE:
+                logger.info("Applying optimized hyperparameters to training...")
+                training_parameter, augmentations = apply_optimized_hyperparameters(
+                    training_parameter, augmentations, best_hyperparams
+                )
+                
+                # Save applied configuration
+                applied_config_path = output_dir / "applied_hyperparameters.yaml"
+                with open(applied_config_path, 'w') as f:
+                    yaml.dump({
+                        'training_parameters': training_parameter,
+                        'augmentations': augmentations,
+                        'source': 'optimization'
+                    }, f, default_flow_style=False)
+                logger.info(f"Applied configuration saved to: {applied_config_path}")
     
         # Train YOLO model - use output_dir as project and train_name as experiment name
         train_yolo_classification(temp_dataset_path, output_dir, train_name, training_parameter, model_name=model_name, augmentations=augmentations)
