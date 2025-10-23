@@ -81,9 +81,20 @@ class BaseCAM:
             if self.task == 'od':
                 target_categories = outputs[0].boxes.cls
             elif self.task == 'cls':
-                # Change
-                # target_categories = [np.argmax(outputs[0].probs.cpu().numpy())]
-                target_categories = outputs[0].probs.top5
+                output_obj = outputs[0]
+                if hasattr(output_obj, 'probs') and output_obj.probs is not None:
+                    target_categories = output_obj.probs.top5
+                elif isinstance(output_obj, torch.Tensor):
+                    probs_tensor = torch.softmax(output_obj, dim=-1)
+                    if probs_tensor.ndim == 1:
+                        top_indices = torch.topk(probs_tensor, k=1).indices
+                        target_categories = top_indices.detach().cpu().tolist()
+                    else:
+                        top_indices = torch.topk(probs_tensor, k=1, dim=-1).indices.squeeze(0)
+                        target_categories = top_indices.detach().cpu().tolist()
+                else:
+                    raise TypeError(
+                        f"Unsupported classification output type for CAM: {type(output_obj)}")
             elif self.task == 'seg':
                 target_categories = [category['name'] for category in outputs[0].summary()]
             else:

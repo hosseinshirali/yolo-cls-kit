@@ -17,7 +17,7 @@ A comprehensive pipeline for training and evaluating YOLO classification models 
   - Confusion matrix visualization
   - Classification reports
   - Prediction results saved to Excel
-- **Explainability:** EigenCAM visualizations for model interpretability
+- **Explainability:** EigenCAM, GradCAM, and GradCAM++ heatmaps with flexible comparison utilities
 - **Memory Optimization:** Automatic cleanup after intensive operations
 - **Progress Tracking:** Rich progress bars for long operations
 - **Support for Multiple YOLO Models:** YOLOv8, YOLO11, and custom models
@@ -78,7 +78,8 @@ The pipeline supports three different ways to organize your dataset:
 - Three text files (train.txt, val.txt, test.txt) containing image names for each split
 
 Example structure:
-```
+
+```text
 dataset/
   ├── class1/
   │   ├── image1.jpg
@@ -99,7 +100,8 @@ dataset/
 - Each split folder contains class subfolders
 
 Example structure:
-```
+
+```text
 dataset/
   ├── train/
   │   ├── class1/
@@ -122,7 +124,8 @@ dataset/
 - Excel file containing filename, label, and phase columns
 
 Example structure:
-```
+
+```text
 dataset/
   ├── all/
   │   ├── image1.jpg
@@ -132,11 +135,13 @@ dataset/
 ```
 
 Excel file format:
+
 | filename | label | phase |
 |----------|-------|-------|
 | image1.jpg | class1 | train |
 | image2.jpg | class2 | test |
 | ... | ... | ... |
+
 
 ## Usage
 
@@ -155,6 +160,7 @@ python run_pipeline.py --config my_config.yaml
 ```
 
 **Example config_example.yaml:**
+
 ```yaml
 dataset:
   presplit_root: "dataset/smnk_split"
@@ -180,6 +186,7 @@ augmentations:
 postprocessing:
   sample_size: 30  # Number of images for EigenCAM visualization
 ```
+
 
 ### Command Line Usage
 
@@ -214,6 +221,74 @@ Specify augmentation parameters (all are optional):
 python run_pipeline.py output_dir --splits-input path/to/images path/to/splits_dir \
   --hsv_h 0.015 --flipud 0.5 --fliplr 0.7 --scale 0.6
 ```
+
+## CAM Heatmaps
+
+The repository ships a dedicated CLI, `generate_eigencam.py`, for creating YOLO classification heatmaps with EigenCAM, GradCAM, and GradCAM++.
+
+### Prerequisites
+
+1. Activate the project environment: `yolo_cls_env\Scripts\activate` (Windows) or `source yolo_cls_env/bin/activate` (Linux/Mac).
+2. Run `python generate_eigencam.py --help` from the repository root to view all options.
+
+### Single Image Visualisation
+
+```bash
+python generate_eigencam.py \
+  --model path/to/best.pt \
+  --image path/to/image.jpg \
+  --output heatmap
+```
+
+Key defaults:
+
+- `--target` selects the layer index (negative values count from the end, default `-2`).
+- `--method` chooses the CAM backend (`eigencam`, `gradcam`, `gradcam++`).
+
+### Batch Processing
+
+```bash
+python generate_eigencam.py \
+  --model path/to/best.pt \
+  --input path/to/image_folder \
+  --output heatmap \
+  --method gradcam++ \
+  --max-images 200
+```
+
+`--input` accepts any directory (recursively scanned). Use `--max-images` to limit processing.
+
+### Comparing Layers
+
+```bash
+python generate_eigencam.py \
+  --model path/to/best.pt \
+  --image path/to/image.jpg \
+  --output heatmap \
+  --compare \
+  --compare-layers -1 -3 -5
+```
+
+`--compare` renders one figure per image with side-by-side overlays for the requested layer indices.
+
+### Comparing Methods
+
+```bash
+python generate_eigencam.py \
+  --model path/to/best.pt \
+  --image path/to/image.jpg \
+  --output heatmap \
+  --compare-methods \
+  --method-target -3
+```
+
+This produces EigenCAM vs GradCAM++ overlays for the chosen layer. Omit `--method-target` to reuse the `--target` layer.
+
+### Output
+
+- Results land in the directory passed via `--output` (created if missing).
+- Filenames follow `eigencam_<image_name>.png`, `comparison_<image_name>.png`, or `method_comparison_<image_name>.png` depending on the mode.
+- Logs report total successes and failures; enable `--verbose` for detailed layer listings.
 
 ## Python API
 
@@ -262,7 +337,7 @@ main("path/to/images", "output_dir", training_parameter=training_parameter,
 
 The pipeline creates the following output structure:
 
-```
+```text
 output_dir/
   ├── train_results/              # Training results
   │   ├── weights/                # Trained model weights
@@ -308,6 +383,7 @@ The pipeline automatically creates detailed logs:
 - **Log Levels:** DEBUG, INFO, WARNING, ERROR
 
 To view logs:
+
 ```bash
 # View latest log
 tail -f yolo_pipeline_*.log
@@ -324,10 +400,12 @@ grep WARNING yolo_pipeline_*.log
 The pipeline performs two separate evaluations after training:
 
 ### 1. Validation Evaluation (STEP 1)
+
 **Purpose:** For model benchmarking and comparison  
 **Method:** Uses YOLO's built-in `.val()` method  
 **Output:** `val_results/validation_metrics.txt`  
 **Metrics:**
+
 - Top-1 Accuracy (main metric for benchmarking)
 - Top-5 Accuracy
 - Confusion matrix
@@ -335,10 +413,12 @@ The pipeline performs two separate evaluations after training:
 ⚠️ **Important:** Always use validation results for model benchmarking, NOT test results!
 
 ### 2. Test Evaluation (STEP 2)
+
 **Purpose:** Detailed analysis and model interpretability  
 **Method:** Custom inference + sklearn metrics + EigenCAM  
 **Output:** `test_results/`  
 **Includes:**
+
 - Confusion matrix
 - Classification report (precision, recall, F1-score per class)
 - Predictions Excel file
@@ -348,7 +428,7 @@ The pipeline performs two separate evaluations after training:
 
 After training and evaluation, you'll find:
 
-```
+```text
 output_dir/
 ├── train_results/
 │   ├── weights/

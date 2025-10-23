@@ -8,6 +8,16 @@ class ClassifierOutputTarget:
         self.category = category
 
     def __call__(self, model_output):
+        # Handle YOLO Results object - extract probs tensor
+        if hasattr(model_output, 'probs') and model_output.probs is not None:
+            probs_obj = model_output.probs
+            if hasattr(probs_obj, 'tensor') and probs_obj.tensor is not None:
+                model_output = probs_obj.tensor
+            elif hasattr(probs_obj, 'data'):
+                model_output = probs_obj.data
+            else:
+                model_output = probs_obj
+        
         if len(model_output.shape) == 1:
             return model_output[self.category]
         return model_output[:, self.category]
@@ -18,6 +28,16 @@ class ClassifierOutputSoftmaxTarget:
         self.category = category
 
     def __call__(self, model_output):
+        # Handle YOLO Results object - extract probs tensor
+        if hasattr(model_output, 'probs') and model_output.probs is not None:
+            probs_obj = model_output.probs
+            if hasattr(probs_obj, 'tensor') and probs_obj.tensor is not None:
+                model_output = probs_obj.tensor
+            elif hasattr(probs_obj, 'data'):
+                model_output = probs_obj.data
+            else:
+                model_output = probs_obj
+        
         if len(model_output.shape) == 1:
             return torch.softmax(model_output, dim=-1)[self.category]
         return torch.softmax(model_output, dim=-1)[:, self.category]

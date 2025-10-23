@@ -1040,34 +1040,75 @@ def run_postprocessing(
     logger.info("="*60)
 
 def apply_eigencam(model, image_path, output_dir, target=-2, task='cls', show=False):
+    """
+    Apply EigenCAM visualization to a single image.
+    
+    Args:
+        model: YOLO model
+        image_path: Path to input image
+        output_dir: Directory to save output
+        target: Target layer index (default: -2, second-to-last layer)
+        task: Task type ('cls' for classification)
+        show: Whether to display the result (default: False)
+        
+    Note:
+        For better results, consider trying different target layers:
+        - target=-1: Last layer (more class-specific but less spatial detail)
+        - target=-2: Second-to-last layer (good balance)
+        - target=-3 to -5: Earlier layers (more spatial detail, less semantic)
+    """
     
     # Convert paths to Path objects if they are strings
     image_path = Path(image_path) if isinstance(image_path, str) else image_path
     output_dir = Path(output_dir) if isinstance(output_dir, str) else output_dir
     
-    # Load the YOLO model
-    target_layers = [model.model.model[target]]
-
+    # Load the YOLO model and select target layer
+    try:
+        target_layers = [model.model.model[target]]
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Failed to access target layer {target}: {e}")
+        logger.info(f"Model architecture: {model.model.model}")
+        raise
+    
     # Load and preprocess the image
     img = cv2.imread(str(image_path))
-    rgb_img = img.copy()
-    img = np.float32(img) / 255
-
-    # Perform EigenCAM and display the CAM image
+    if img is None:
+        logger.error(f"Failed to load image: {image_path}")
+        return
+    
+    # Convert BGR to RGB for proper color visualization
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Normalize to [0, 1] range for overlay visualization
+    img_normalized = np.float32(img_rgb) / 255.0
+    
+    # IMPORTANT: Pass the RGB image (not normalized) to CAM
+    # The CAM model expects the original image for prediction
+    # Perform EigenCAM and get the CAM heatmap
     cam = EigenCAM(model, target_layers, task=task)
-    grayscale_cam = cam(rgb_img)[0, :, :]
-    cam_image = show_cam_on_image(img, grayscale_cam, use_rgb=True)
+    grayscale_cam = cam(img_rgb)[0, :, :]
+    
+    # Ensure CAM values are in valid range [0, 1]
+    grayscale_cam = np.clip(grayscale_cam, 0, 1)
+    
+    # Overlay the CAM heatmap on the normalized image
+    cam_image = show_cam_on_image(img_normalized, grayscale_cam, use_rgb=True)
 
-    plt.title(f"EigenCAM for {image_path}")
+    plt.figure(figsize=(10, 10))
+    plt.imshow(cam_image)
+    plt.title(f"EigenCAM for {image_path.name}")
     plt.axis('off')
     if show:
         plt.show()
 
     # Save the CAM image
-    cam_image_save_path = output_dir / f"cam_{Path(image_path).name}"
-    if not output_dir is None:
+    cam_image_save_path = output_dir / f"cam_{image_path.name}"
+    if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
         plt.imsave(str(cam_image_save_path), cam_image)
+        logger.debug(f"Saved EigenCAM to: {cam_image_save_path}")
+    
+    plt.close()  # Close figure to free memory
 
 def main(
     image_root: Union[str, Path], 
