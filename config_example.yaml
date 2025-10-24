@@ -150,42 +150,67 @@ optimization:
     # Freezing too many layers can cause "RuntimeError: element 0 of tensors does not require grad"
     freeze: [0, 5]  # Range [min, max] - try freezing 0 to 5 layers (safer range)
     
-    # Learning rate parameters
-    lr0: [0.0005, 0.01]  # Initial learning rate range [min, max] - narrowed for faster convergence
-    lrf: [0.01, 0.1]     # Final learning rate factor range [min, max]
+    # ============================================================================
+    # LEARNING RATE PARAMETERS (Aligned with Ultralytics)
+    # ============================================================================
+    lr0: [0.00001, 0.1]  # Initial learning rate [1e-5, 0.1] - use 1e-5 not 0 for log scale
+    lrf: [0.01, 1.0]     # Final learning rate factor [0.01, 1.0] - expanded upper range
     
-    # Optimizer parameters
-    momentum: [0.8, 0.95]      # Momentum range [min, max]
-    weight_decay: [0.0001, 0.001]  # Weight decay range [min, max]
+    # ============================================================================
+    # OPTIMIZER PARAMETERS (Aligned with Ultralytics)
+    # ============================================================================
+    momentum: [0.6, 0.98]         # Momentum [0.6, 0.98] - expanded lower bound
+    weight_decay: [0.0, 0.001]    # Weight decay [0.0, 0.001] - 0 = no regularization
     
-    # Training parameters
-    warmup_epochs: [1, 5]      # Warmup epochs range [min, max]
-    warmup_momentum: [0.5, 0.9]  # Warmup momentum range [min, max]
+    # ============================================================================
+    # WARMUP PARAMETERS (Aligned with Ultralytics)
+    # ============================================================================
+    warmup_epochs: [0, 5]         # Warmup epochs [0, 5] - 0 = no warmup
+    warmup_momentum: [0.0, 0.95]  # Warmup momentum [0.0, 0.95] - expanded range
     
-    # Dropout (if you want to tune it)
-    dropout: [0.1, 0.4]  # Dropout rate range [min, max] - narrowed to practical range
+    # ============================================================================
+    # DROPOUT (Classification specific)
+    # ============================================================================
+    dropout: [0.0, 0.5]  # Dropout rate [0.0, 0.5] - 0 = no dropout
     
-    # Augmentation parameters to optimize
+    # ============================================================================
+    # AUGMENTATION PARAMETERS (Aligned with Ultralytics)
+    # ============================================================================
     augmentation:
       # Auto-augmentation strategy
-      auto_augment: ['autoaugment', 'randaugment', 'augmix', null]  # null means no auto-augment
+      auto_augment: ['autoaugment', 'randaugment', 'augmix', null]  # null = no auto-augment
       
-      # Random erasing
-      erasing: [0.0, 0.5]  # Random erasing probability range [min, max]
+      # Random erasing (classification specific)
+      erasing: [0.0, 0.5]  # Random erasing probability [0.0, 0.5]
       
-      # Color augmentations
-      # hsv_h: [0.0, 0.03]      # HSV-Hue range [min, max]
-      # hsv_s: [0.5, 0.9]       # HSV-Saturation range [min, max]
-      # hsv_v: [0.3, 0.6]       # HSV-Value range [min, max]
+      # ========================================================================
+      # COLOR AUGMENTATIONS (Ultralytics ranges)
+      # ========================================================================
+      hsv_h: [0.0, 0.1]      # HSV-Hue [0.0, 0.1] - color variability
+      hsv_s: [0.0, 0.9]      # HSV-Saturation [0.0, 0.9] - color intensity
+      hsv_v: [0.0, 0.9]      # HSV-Value [0.0, 0.9] - brightness
       
-      # # Geometric augmentations
-      # degrees: [0.0, 15.0]    # Rotation degrees range [min, max]
-      # translate: [0.0, 0.2]   # Translation range [min, max]
-      # scale: [0.1, 0.7]       # Scale range [min, max]
+      # ========================================================================
+      # GEOMETRIC AUGMENTATIONS (Ultralytics ranges)
+      # ========================================================================
+      degrees: [0.0, 45.0]    # Rotation [0.0, 45.0] degrees
+      translate: [0.0, 0.9]   # Translation [0.0, 0.9] fraction
+      scale: [0.0, 0.9]       # Scale [0.0, 0.9] fraction - updated from [0.1, 0.7]
+      shear: [0.0, 10.0]      # Shear [0.0, 10.0] degrees
+      perspective: [0.0, 0.001]  # Perspective [0.0, 0.001] - 3D viewpoint
       
-      # # Flip probabilities
-      # flipud: [0.0, 0.5]      # Vertical flip probability range [min, max]
-      # fliplr: [0.0, 0.5]      # Horizontal flip probability range [min, max]
+      # ========================================================================
+      # FLIP PROBABILITIES (Ultralytics ranges)
+      # ========================================================================
+      flipud: [0.0, 1.0]      # Vertical flip [0.0, 1.0] probability
+      fliplr: [0.0, 1.0]      # Horizontal flip [0.0, 1.0] probability
+      
+      # ========================================================================
+      # ADVANCED AUGMENTATIONS (Ultralytics ranges)
+      # ========================================================================
+      mosaic: [0.0, 1.0]      # Mosaic [0.0, 1.0] - combine 4 images
+      mixup: [0.0, 1.0]       # Mixup [0.0, 1.0] - blend 2 images
+      copy_paste: [0.0, 1.0]  # Copy-paste [0.0, 1.0] - transfer objects
 
 # Logging configuration
 logging:
