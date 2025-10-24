@@ -21,6 +21,7 @@ dataset:
   
   # Example for pre-split dataset:
   presplit_root: "C:/Users/es4994.KIT.001/Documents/Hossein/Papers/valerio/dataset"
+  # presplit_root: "/hkfs/work/workspace_haic/scratch/es4994-agrilus/dataset"
 
 # Output configuration
 output:
@@ -33,7 +34,7 @@ model:
   name: "yolov8l-cls.pt"  # Model name or path
   device: [-1,-1]                # GPU device (0, 1, etc.) or -1 for CPU
   cache: false  # Whether to cache images during training
-  workers: 4
+  workers: 8
 
 
 # Training parameters
