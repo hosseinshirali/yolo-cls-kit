@@ -1201,25 +1201,34 @@ def run_hyperparameter_optimization(
         logger.info("Using OPTUNA for hyperparameter optimization")
         logger.info("="*80)
         
-        # Initialize Optuna optimizer
-        optimizer = YOLOOptunaOptimizer(
-            dataset_yaml=str(dataset_path),
-            model_name=model_name,
-            output_dir=str(opt_output_dir),
-            study_name=optimization_config.get('study_name', None)
-        )
-        
         # Get Optuna-specific parameters
         pruner = optimization_config.get('pruner', 'median')  # 'median', 'hyperband', 'none'
         sampler = optimization_config.get('sampler', 'tpe')  # 'tpe', 'random', 'cmaes'
         parallel_trials = optimization_config.get('parallel_trials', 1)
         enable_visualization = optimization_config.get('enable_visualization', True)
+        use_in_memory_storage = optimization_config.get('use_in_memory_storage', False)
+        
+        # Auto-enable in-memory storage for parallel trials
+        if parallel_trials > 1 and not use_in_memory_storage:
+            logger.warning("⚠️  Parallel trials detected! Auto-enabling in-memory storage...")
+            logger.warning("    (SQLite doesn't support parallel writes)")
+            use_in_memory_storage = True
+        
+        # Initialize Optuna optimizer
+        optimizer = YOLOOptunaOptimizer(
+            dataset_yaml=str(dataset_path),
+            model_name=model_name,
+            output_dir=str(opt_output_dir),
+            study_name=optimization_config.get('study_name', None),
+            use_in_memory_storage=use_in_memory_storage
+        )
         
         logger.info(f"Optuna Configuration:")
         logger.info(f"  - Pruner: {pruner}")
         logger.info(f"  - Sampler: {sampler}")
         logger.info(f"  - GPUs: {num_gpus}")
         logger.info(f"  - Parallel trials: {parallel_trials}")
+        logger.info(f"  - In-memory storage: {use_in_memory_storage}")
         logger.info(f"  - Visualizations: {enable_visualization}")
         
         results = optimizer.optimize(

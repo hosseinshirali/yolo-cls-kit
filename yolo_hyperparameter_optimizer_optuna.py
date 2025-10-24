@@ -153,7 +153,8 @@ class YOLOOptunaOptimizer:
         dataset_yaml: str,
         model_name: str = 'yolov8n-cls.pt',
         output_dir: str = 'optimization_results',
-        study_name: Optional[str] = None
+        study_name: Optional[str] = None,
+        use_in_memory_storage: bool = False
     ):
         """
         Initialize the Optuna optimizer.
@@ -163,6 +164,7 @@ class YOLOOptunaOptimizer:
             model_name: YOLO model name or path
             output_dir: Directory to save optimization results
             study_name: Name for the Optuna study (default: auto-generated)
+            use_in_memory_storage: Use in-memory storage (required for parallel trials)
         """
         self.dataset_yaml = dataset_yaml
         self.model_name = model_name
@@ -174,9 +176,17 @@ class YOLOOptunaOptimizer:
         self.study_dir = self.output_dir / self.study_name
         self.study_dir.mkdir(parents=True, exist_ok=True)
         
-        # SQLite database for persistence (crash recovery)
-        self.db_path = self.study_dir / f'{self.study_name}.db'
-        self.storage = f'sqlite:///{self.db_path}'
+        # Storage configuration
+        if use_in_memory_storage:
+            # In-memory storage for parallel trials (no SQLite locking issues)
+            self.storage = None
+            self.db_path = None
+            logger.info("Using in-memory storage (no persistence, but supports parallel trials)")
+        else:
+            # SQLite database for persistence (crash recovery, but no parallel support)
+            self.db_path = self.study_dir / f'{self.study_name}.db'
+            self.storage = f'sqlite:///{self.db_path}'
+            logger.info(f"Using SQLite storage: {self.db_path}")
         
         # Progress tracking
         self.progress_tracker = ProgressTracker(self.study_dir)
@@ -294,16 +304,38 @@ class YOLOOptunaOptimizer:
             optuna_sampler = RandomSampler(seed=42)
             logger.info("Using Random sampler")
         
-        # Create or load study (with SQLite persistence)
-        logger.info(f"Creating study with SQLite storage: {self.storage}")
-        self.study = optuna.create_study(
-            study_name=self.study_name,
-            storage=self.storage,
-            load_if_exists=True,  # Resume from crashes
-            direction='maximize',
-            pruner=optuna_pruner,
-            sampler=optuna_sampler
-        )
+        # Parallel trials check
+        if parallel_trials > 1 and self.storage and 'sqlite' in self.storage:
+            logger.warning("="*80)
+            logger.warning("⚠️  WARNING: SQLite does not support parallel trials!")
+            logger.warning("   SQLite will cause database locking errors with n_jobs > 1")
+            logger.warning("   Solutions:")
+            logger.warning("   1. Set parallel_trials=1 (sequential, safe)")
+            logger.warning("   2. Set use_in_memory_storage=True (fast, no persistence)")
+            logger.warning("   3. Use MySQL/PostgreSQL for production (best)")
+            logger.warning("="*80)
+            logger.warning("Switching to sequential mode (parallel_trials=1)...")
+            parallel_trials = 1
+        
+        # Create or load study
+        if self.storage:
+            logger.info(f"Creating study with storage: {self.storage}")
+            self.study = optuna.create_study(
+                study_name=self.study_name,
+                storage=self.storage,
+                load_if_exists=True,  # Resume from crashes
+                direction='maximize',
+                pruner=optuna_pruner,
+                sampler=optuna_sampler
+            )
+        else:
+            logger.info("Creating study with in-memory storage (no persistence)")
+            self.study = optuna.create_study(
+                study_name=self.study_name,
+                direction='maximize',
+                pruner=optuna_pruner,
+                sampler=optuna_sampler
+            )
         
         # Store configuration for objective function
         self.hyperparams_config = hyperparams_config

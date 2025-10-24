@@ -20,12 +20,12 @@ dataset:
   # excel_path: "path/to/metadata.xlsx"
   
   # Example for pre-split dataset:
-  presplit_root: "C:/Users/es4994.KIT.001/Documents/Hossein/Papers/valerio/dataset"
-  # presplit_root: "/hkfs/work/workspace_haic/scratch/es4994-agrilus/dataset"
+  # presplit_root: "C:/Users/es4994.KIT.001/Documents/Hossein/Papers/valerio/dataset"
+  presplit_root: "/hkfs/work/workspace_haic/scratch/es4994-agrilus/dataset"
 
 # Output configuration
 output:
-  output_dir: "output_dir/agrilus"
+  output_dir: "output_dir/agrilus_optuna"
   train_name: "train_results"  # Optional, default: train_results
   test_name: "test_results"    # Optional, default: test_results
 
@@ -92,7 +92,7 @@ optimization:
   # ============================================================================
   # COMMON SETTINGS (Both Ray Tune and Optuna)
   # ============================================================================
-  num_gpus: 1     # Number of GPUs available (1 for single GPU, 2+ for multi-GPU)
+  num_gpus: 4     # Number of GPUs available (1 for single GPU, 2+ for multi-GPU)
   tune_epochs: 30  # Epochs for each optimization trial
   metric: 'metrics/accuracy_top1'  # Metric to optimize
   
@@ -120,7 +120,14 @@ optimization:
   # Parallel trials (only for multi-GPU)
   # Set to 1 for sequential trials (safe for single GPU)
   # Set to num_gpus for maximum parallelism
-  parallel_trials: 1
+  # IMPORTANT: parallel_trials > 1 requires use_in_memory_storage=true
+  parallel_trials: 4
+  
+  # Storage backend for Optuna study
+  # - false (default): SQLite database (supports crash recovery, NO parallel trials)
+  # - true: In-memory storage (NO persistence, supports parallel trials)
+  # NOTE: When parallel_trials > 1, this is automatically set to true
+  use_in_memory_storage: true
   
   # Enable interactive HTML visualizations (7+ plots)
   enable_visualization: true
@@ -186,31 +193,31 @@ optimization:
       # ========================================================================
       # COLOR AUGMENTATIONS (Ultralytics ranges)
       # ========================================================================
-      hsv_h: [0.0, 0.1]      # HSV-Hue [0.0, 0.1] - color variability
-      hsv_s: [0.0, 0.9]      # HSV-Saturation [0.0, 0.9] - color intensity
-      hsv_v: [0.0, 0.9]      # HSV-Value [0.0, 0.9] - brightness
+      # hsv_h: [0.0, 0.1]      # HSV-Hue [0.0, 0.1] - color variability
+      # hsv_s: [0.0, 0.9]      # HSV-Saturation [0.0, 0.9] - color intensity
+      # hsv_v: [0.0, 0.9]      # HSV-Value [0.0, 0.9] - brightness
       
-      # ========================================================================
-      # GEOMETRIC AUGMENTATIONS (Ultralytics ranges)
-      # ========================================================================
-      degrees: [0.0, 45.0]    # Rotation [0.0, 45.0] degrees
-      translate: [0.0, 0.9]   # Translation [0.0, 0.9] fraction
-      scale: [0.0, 0.9]       # Scale [0.0, 0.9] fraction - updated from [0.1, 0.7]
-      shear: [0.0, 10.0]      # Shear [0.0, 10.0] degrees
-      perspective: [0.0, 0.001]  # Perspective [0.0, 0.001] - 3D viewpoint
+      # # ========================================================================
+      # # GEOMETRIC AUGMENTATIONS (Ultralytics ranges)
+      # # ========================================================================
+      # degrees: [0.0, 45.0]    # Rotation [0.0, 45.0] degrees
+      # translate: [0.0, 0.9]   # Translation [0.0, 0.9] fraction
+      # scale: [0.0, 0.9]       # Scale [0.0, 0.9] fraction - updated from [0.1, 0.7]
+      # shear: [0.0, 10.0]      # Shear [0.0, 10.0] degrees
+      # perspective: [0.0, 0.001]  # Perspective [0.0, 0.001] - 3D viewpoint
       
-      # ========================================================================
-      # FLIP PROBABILITIES (Ultralytics ranges)
-      # ========================================================================
-      flipud: [0.0, 1.0]      # Vertical flip [0.0, 1.0] probability
-      fliplr: [0.0, 1.0]      # Horizontal flip [0.0, 1.0] probability
+      # # ========================================================================
+      # # FLIP PROBABILITIES (Ultralytics ranges)
+      # # ========================================================================
+      # flipud: [0.0, 1.0]      # Vertical flip [0.0, 1.0] probability
+      # fliplr: [0.0, 1.0]      # Horizontal flip [0.0, 1.0] probability
       
-      # ========================================================================
-      # ADVANCED AUGMENTATIONS (Ultralytics ranges)
-      # ========================================================================
-      mosaic: [0.0, 1.0]      # Mosaic [0.0, 1.0] - combine 4 images
-      mixup: [0.0, 1.0]       # Mixup [0.0, 1.0] - blend 2 images
-      copy_paste: [0.0, 1.0]  # Copy-paste [0.0, 1.0] - transfer objects
+      # # ========================================================================
+      # # ADVANCED AUGMENTATIONS (Ultralytics ranges)
+      # # ========================================================================
+      # mosaic: [0.0, 1.0]      # Mosaic [0.0, 1.0] - combine 4 images
+      # mixup: [0.0, 1.0]       # Mixup [0.0, 1.0] - blend 2 images
+      # copy_paste: [0.0, 1.0]  # Copy-paste [0.0, 1.0] - transfer objects
 
 # Logging configuration
 logging:
