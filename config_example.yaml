@@ -21,17 +21,17 @@ dataset:
   
   # Example for pre-split dataset:
   # presplit_root: "C:/Users/es4994.KIT.001/Documents/Hossein/Papers/valerio/dataset"
-  presplit_root: "/hkfs/work/workspace_haic/scratch/es4994-agrilus/dataset"
+  presplit_root: "E:\\Datasets\\Phorids\\orientation\\Final_orientation\\cropov\\split_balanced"
 
 # Output configuration
 output:
-  output_dir: "output_dir/agrilus_optuna"
+  output_dir: "output_dir/phorid_orient1_balanced"  # Directory to save outputs
   train_name: "train_results"  # Optional, default: train_results
   test_name: "test_results"    # Optional, default: test_results
 
 # Model configuration
 model:
-  name: "yolov8l-cls.pt"  # Model name or path
+  name: "yolov8x-cls.pt"  # Model name or path
   device: [-1,-1]                # GPU device (0, 1, etc.) or -1 for CPU
   cache: false  # Whether to cache images during training
   workers: 8
@@ -40,9 +40,9 @@ model:
 # Training parameters
 training:
   epochs: 150
-  imgsz: 224
+  imgsz: 640
   optimizer: 'auto'
-  batch: 32 #Auto Mode (60% GPU Memory): Use batch=-1 to automatically adjust batch size for approximately 60% CUDA memory utilization.
+  batch: 16 #Auto Mode (60% GPU Memory): Use batch=-1 to automatically adjust batch size for approximately 60% CUDA memory utilization.
   patience: 15
   dropout: 0.3
   resume: False
@@ -54,17 +54,17 @@ augmentations:
   hsv_h: 0.015      # HSV-Hue augmentation
   hsv_s: 0.7        # HSV-Saturation augmentation
   hsv_v: 0.4        # HSV-Value augmentation
-  degrees: 0.15      # Image rotation (degrees)
+  degrees: 0.0      # Image rotation (degrees)
   translate: 0.1    # Image translation fraction
   scale: 0.5        # Image scale fraction
-  shear: 0.1        # Image shear (degrees)
+  shear: 0.0        # Image shear (degrees)
   perspective: 0.0  # Image perspective fraction
-  flipud: 0.5       # Vertical flip probability
-  fliplr: 0.5       # Horizontal flip probability
+  flipud: 0.0       # Vertical flip probability
+  fliplr: 0.0       # Horizontal flip probability
   mosaic: 1.0       # Mosaic augmentation probability
   mixup: 0.0        # Mixup augmentation probability
   copy_paste: 0.0   # Copy-paste augmentation probability
-  auto_augment: 'autoaugment'  # Whether to use auto-augmentation or None
+  auto_augment: 'randaugment'  # Whether to use auto-augmentation or None
   erasing: 0.4      # Random erasing probability
 
 
@@ -74,7 +74,7 @@ postprocessing:
 
 # Hyperparameter Optimization Configuration
 optimization:
-  enabled: true  # Set to true to enable hyperparameter optimization
+  enabled: false  # Set to true to enable hyperparameter optimization
   iterations: 100  # Number of optimization trials
   
   # ============================================================================

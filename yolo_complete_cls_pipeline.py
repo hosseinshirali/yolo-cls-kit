@@ -1364,7 +1364,8 @@ def main(
     logger.info("="*80)
     
     # Create output directory if it doesn't exist
-    output_dir = Path(output_dir)
+    # Convert to absolute path to prevent YOLO from using its default runs directory
+    output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Add file handler for this specific run
@@ -1422,7 +1423,8 @@ def main(
         }
     
     # Create output directory if it doesn't exist
-    output_dir = Path(output_dir)
+    # Convert to absolute path to prevent YOLO from using its default runs directory
+    output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Detect dataset type
