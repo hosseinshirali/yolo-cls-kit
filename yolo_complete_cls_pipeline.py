@@ -205,7 +205,16 @@ def scan_folders(root_folder: str,
     logger.debug(f"Root folder: {root_folder}")
     return matching_files
 
-def get_folder_paths(root_folder):
+def get_folder_paths(root_folder: Union[str, Path]) -> List[str]:
+    """
+    Get a list of all subdirectories in the root folder.
+
+    Args:
+        root_folder (Union[str, Path]): Root directory to scan.
+
+    Returns:
+        List[str]: List of paths to subdirectories.
+    """
     folder_paths = []
     for root, dirs, files in os.walk(root_folder):
         for name in dirs:
@@ -242,12 +251,16 @@ def create_content_dataframe(files: list, file_name_column: str="filename") -> p
 
 def copy_temp_dataset(image_root: Union[str, Path], dest_root: Union[str, Path], split_files: Dict[str, str]) -> None:
     """
-    Copy the dataset to a temporary location for training
-    
+    Copy images to a temporary directory structure organized for training.
+
+    Reads split files (train.txt, val.txt, etc.), finds the corresponding images
+    in the source directory, and copies them to processed/class folders in the destination.
+
     Args:
-        image_root: Root directory containing images organized by class
-        dest_root: Destination directory for temporary dataset
-        split_files: Dictionary mapping split names to file paths
+        image_root (Union[str, Path]): Root directory containing images.
+        dest_root (Union[str, Path]): Destination directory for the temporary dataset.
+        split_files (Dict[str, str]): Dictionary mapping split names ('train', 'val', 'test') to file paths.
+    """
     """
     image_root = Path(image_root)
     dest_root = Path(dest_root)
@@ -343,14 +356,24 @@ def validate_presplit_dataset(split_root: Union[str, Path]) -> bool:
     
     return all_valid
 
-def create_dataset_from_excel(image_root: str | Path, excel_path: str | Path, dest_root: str | Path):
+def create_dataset_from_excel(image_root: Union[str, Path], excel_path: Union[str, Path], dest_root: Union[str, Path]) -> bool:
     """
-    Create a dataset from a single folder of images and an Excel file with filename, label, and phase columns.
-    
+    Create a structured dataset from a flat image folder using an Excel metadata file.
+
+    The Excel file must contain 'filename', 'label', and 'phase' columns.
+    Images are copied to {dest_root}/{phase}/{label}/{filename}.
+
     Args:
-        image_root (str | Path): Root directory containing all images
-        excel_path (str | Path): Path to Excel file with filename, label, and phase columns
-        dest_root (str | Path): Destination directory for the temporary dataset
+        image_root (Union[str, Path]): Root directory containing all source images.
+        excel_path (Union[str, Path]): Path to the Excel metadata file.
+        dest_root (Union[str, Path]): Destination directory for the structured dataset.
+
+    Returns:
+        bool: True if successful, raises exception otherwise.
+    
+    Raises:
+        ValueError: If required columns are missing from Excel.
+        FileNotFoundError: If images are missing.
     """
     image_root = Path(image_root)
     excel_path = Path(excel_path)
@@ -577,17 +600,27 @@ def detect_dataset_type(dataset_path, splits=None, excel_path=None):
     # Default case
     return "unknown"
 
-def train_yolo_classification(dataset_path, project_dir, train_name, training_parameter, model_name='yolov8n-cls.pt', augmentations=None):
+def train_yolo_classification(
+    dataset_path: Union[str, Path], 
+    project_dir: Union[str, Path], 
+    train_name: str, 
+    training_parameter: Dict[str, Any], 
+    model_name: str = 'yolov8n-cls.pt', 
+    augmentations: Optional[Dict[str, Any]] = None
+) -> Tuple[YOLO, Any]:
     """
-    Train YOLO classification model
-    
+    Train a YOLO classification model using the specified parameters.
+
     Args:
-        dataset_path (str): Path to dataset
-        project_dir (str): Output directory
-        train_name (str): Name for this training run
-        training_parameter (dict): Training parameters
-        model_name (str): Name or path of YOLO model (default: yolov8n-cls.pt)
-        augmentations (dict): Augmentation parameters (optional)
+        dataset_path (Union[str, Path]): Path to the dataset directory (containing train/val/test).
+        project_dir (Union[str, Path]): Base directory for saving items.
+        train_name (str): Name of the specific training run (subdirectory).
+        training_parameter (Dict[str, Any]): Dictionary of training hyperparameters (epochs, batch, etc.).
+        model_name (str, optional): Pretrained model to start from. Defaults to 'yolov8n-cls.pt'.
+        augmentations (Dict[str, Any], optional): Dictionary of augmentation parameters. Defaults to None.
+
+    Returns:
+        Tuple[YOLO, Any]: The trained model object and the training results object.
     """
     # Load a model
     model = YOLO(model_name)  # load a pretrained model
@@ -605,8 +638,8 @@ def train_yolo_classification(dataset_path, project_dir, train_name, training_pa
     
     # Train the model
     results = model.train(
-        data=dataset_path,
-        project=project_dir,
+        data=str(dataset_path),
+        project=str(project_dir),
         name=train_name,
         **train_args,
     )
@@ -1062,23 +1095,30 @@ def run_postprocessing(
     logger.info("\nPostprocessing completed successfully!")
     logger.info("="*60)
 
-def apply_eigencam(model, image_path, output_dir, target=-2, task='cls', show=False):
+def apply_eigencam(
+    model: YOLO, 
+    image_path: Union[str, Path], 
+    output_dir: Union[str, Path], 
+    target: int = -2, 
+    task: str = 'cls', 
+    show: bool = False
+) -> None:
     """
-    Apply EigenCAM visualization to a single image.
-    
+    Apply EigenCAM visualization to a single image to visualize model attention.
+
     Args:
-        model: YOLO model
-        image_path: Path to input image
-        output_dir: Directory to save output
-        target: Target layer index (default: -2, second-to-last layer)
-        task: Task type ('cls' for classification)
-        show: Whether to display the result (default: False)
+        model (YOLO): The trained YOLO model object.
+        image_path (Union[str, Path]): Path to the input image.
+        output_dir (Union[str, Path]): Directory where the visualization will be saved.
+        target (int, optional): The target layer index to visualize. Defaults to -2 (second to last).
+        task (str, optional): The task type (only 'cls' supported). Defaults to 'cls'.
+        show (bool, optional): Whether to display the plot (blocking). Defaults to False.
         
     Note:
-        For better results, consider trying different target layers:
-        - target=-1: Last layer (more class-specific but less spatial detail)
-        - target=-2: Second-to-last layer (good balance)
-        - target=-3 to -5: Earlier layers (more spatial detail, less semantic)
+        Different target layers reveal different features:
+        - target=-1: Last layer (class-specific, less spatial).
+        - target=-2: Second-to-last layer (good balance).
+        - target=-3/-4: Earlier layers (more spatial detail, less semantic).
     """
     
     # Convert paths to Path objects if they are strings
@@ -1660,36 +1700,6 @@ if __name__ == "__main__":
     # Define model name
     model_name = 'yolov8l-cls.pt'
     
-    # Example 1: Using text files for splits
-    # ======================================
-    # print("\nExample 1: Using text files for train/val/test splits")
-    # output_dir = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/test_run")
-    # image_root = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk")
-    
-    # splits = {
-    #     "train": Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk/train.txt"),
-    #     "val": Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk/val.txt"),
-    #     "test": Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk/test.txt")
-    # }
-    
-    # Uncomment to run this example
-    # main(image_root, output_dir, splits, training_parameter, model_name=model_name, augmentations=augmentation_params)
-    
-    # Example 2: Using pre-split dataset
-    # =================================
-    # print("\nExample 2: Using pre-split dataset (train/val/test folders)")
-    # output_dir = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/test_run_split")
-    # presplit_dataset = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk_split")
-    
-    # # Uncomment to run this example
-    # main(presplit_dataset, output_dir, training_parameter=training_parameter, model_name=model_name, augmentations=augmentation_params)
-    
-    # Example 3: Using Excel file for dataset splitting
-    # ==============================================
-    print("\nExample 3: Using Excel file for dataset splitting")
-    output_dir = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/test_run_excel")
-    flat_image_root = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk_excel/all")
-    excel_path = Path(r"C:/Users/es4994/Desktop/Project/PhDCodes/yolo_cls/dataset/smnk_excel/smnk.xlsx")
-    
-    # Uncomment to run this example
-    main(flat_image_root, output_dir, training_parameter=training_parameter, excel_path=excel_path, model_name=model_name, augmentations=augmentation_params)
+    # Examples of how to call the main function programmatically are available in run_pipeline.py
+    # or by running with --help
+    print("Please use run_pipeline.py or see the documentation for usage.")

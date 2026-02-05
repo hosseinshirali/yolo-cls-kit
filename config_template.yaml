@@ -1,0 +1,138 @@
+# Template configuration file for YOLO Classification Pipeline
+# COPY THIS FILE TO 'config.yaml' AND EDIT IT FOR YOUR SETUP.
+
+# Dataset configuration
+dataset:
+  # Choose one of the following dataset input methods:
+  
+  # Method 1: Class-organized with text split files
+  # image_root: "/path/to/images"
+  # splits:
+  #   train: "/path/to/train.txt"
+  #   val: "/path/to/val.txt"
+  #   test: "/path/to/test.txt"
+  
+  # Method 2: Pre-split dataset (train/val/test folders)
+  # presplit_root: "/path/to/presplit_dataset"
+  
+  # Method 3: Flat dataset with Excel metadata
+  # image_root: "/path/to/all_images"
+  # excel_path: "/path/to/metadata.xlsx"
+  
+  # Example for pre-split dataset:
+  presplit_root: "./dataset/example_split"
+
+# Output configuration
+output:
+  output_dir: "./runs/classification"  # Directory to save outputs
+  train_name: "train_results"          # Optional, default: train_results
+  test_name: "test_results"            # Optional, default: test_results
+
+# Model configuration
+model:
+  name: "yolov8n-cls.pt"         # Model to use (n, s, m, l, x)
+  device: 0                      # GPU device (0, 1, etc.) or -1 for CPU
+  cache: false                   # Whether to cache images during training (uses RAM)
+  workers: 4                     # Number of workers for data loading
+
+# Training parameters
+training:
+  epochs: 100
+  imgsz: 640
+  optimizer: 'auto'
+  batch: 16      # Batch size. Use -1 for auto-batch (requires valid CUDA device)
+  patience: 15   # Early stopping patience
+  dropout: 0.2
+  resume: False
+  freeze: 0      # Number of layers to freeze (0 = none)
+  
+
+# Augmentation parameters (optional)
+# See Ultralytics docs for valid ranges
+augmentations:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 10.0
+  translate: 0.1
+  scale: 0.5
+  shear: 0.0
+  perspective: 0.0
+  flipud: 0.0
+  fliplr: 0.5
+  mosaic: 1.0
+  mixup: 0.0
+
+# Postprocessing parameters
+postprocessing:
+  sample_size: 20  # Number of images to generate EigenCAM visualizations for
+
+# Hyperparameter Optimization (Optional)
+# Hyperparameter Optimization (Optional - Advanced)
+optimization:
+  enabled: false  # Set to true to enable hyperparameter optimization
+  iterations: 20  # Number of optimization trials (reduced from 100 for template)
+  
+  # ============================================================================
+  # OPTIMIZER SELECTION: Choose your HPO backend
+  # ============================================================================
+  # Option 1: Ray Tune (Original)
+  use_ray: false   # Use Ray Tune for optimization
+  
+  # Option 2: Optuna (NEW - RECOMMENDED)
+  use_optuna: true  # Use Optuna for optimization (advanced features)
+  
+  # NOTE: If both are true, Optuna takes priority. If both false, simple random search.
+  
+  # ============================================================================
+  # COMMON SETTINGS (Both Ray Tune and Optuna)
+  # ============================================================================
+  # num_gpus: 1     # Number of GPUs available (1 for single GPU, 2+ for multi-GPU)
+  tune_epochs: 10  # Epochs for each optimization trial (reduced for template)
+  metric: 'metrics/accuracy_top1'  # Metric to optimize
+  
+  # ============================================================================
+  # OPTUNA-SPECIFIC SETTINGS (only used when use_optuna=true)
+  # ============================================================================
+  # study_name: 'yolo_optuna_study'  # Optional: used for SQLite database filename
+  pruner: 'median'  # 'median', 'hyperband', 'none'
+  sampler: 'tpe'    # 'tpe' (Bayesian), 'random', 'cmaes'
+  
+  # Parallel trials (only for multi-GPU)
+  parallel_trials: 1
+  use_in_memory_storage: false  # Set to true for parallel optimization
+  
+  enable_visualization: true
+  
+  # ============================================================================
+  # RAY TUNE SPECIFIC SETTINGS (only used when use_ray=true)
+  # ============================================================================
+  search_strategy: 'random'  # 'random' or 'grid'
+  
+  # ============================================================================
+  # HYPERPARAMETERS TO OPTIMIZE
+  # ============================================================================
+  # These parameters will override the defaults during optimization steps.
+  hyperparameters:
+    # Optimizer selection
+    optimizer: ['SGD', 'Adam', 'AdamW']
+    
+    # Freeze layers
+    freeze: [0, 5]  # Range [min, max]
+    
+    # Learning Rate
+    lr0: [0.00001, 0.01]
+    lrf: [0.01, 1.0]
+    
+    # Momentum & Decay
+    momentum: [0.6, 0.98]
+    weight_decay: [0.0, 0.001]
+    
+    # Augmentations (Ultralytics ranges)
+    augmentation:
+      auto_augment: ['randaugment', null]
+      erasing: [0.0, 0.2]
+      # hsv_h: [0.0, 0.05]
+      # degrees: [0.0, 10.0]
+      # ... add others as needed
+

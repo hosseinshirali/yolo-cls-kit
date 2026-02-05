@@ -1,5 +1,8 @@
 # Python
 __pycache__/
+config_local.yaml
+train_local.sh
+
 *.py[cod]
 *$py.class
 *.so
