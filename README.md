@@ -1,4 +1,4 @@
-# YOLO Classification Pipeline
+# yolo-cls-kit 🛠️
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -51,12 +51,12 @@ While Ultralytics provides a powerful CLI, managing complex experiments, reprodu
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/yolo_cls.git
-cd yolo_cls
+git clone https://github.com/hosseinshirali/yolo-cls-kit.git
+cd yolo-cls-kit
 
 # Create environment (Recommended)
-conda create -n yolo_cls_env python=3.10
-conda activate yolo_cls_env
+conda create -n yolo_cls_kit python=3.10
+conda activate yolo_cls_kit
 
 # Install dependencies
 pip install -r requirements_pipeline.txt

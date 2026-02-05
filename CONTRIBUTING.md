@@ -1,4 +1,4 @@
-# Contributing to YOLO Classification Pipeline
+# Contributing to yolo-cls-kit 🛠️
 
 First off, thanks for taking the time to contribute! 🎉
 

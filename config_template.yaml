@@ -1,4 +1,4 @@
-# Template configuration file for YOLO Classification Pipeline
+# Configuration template for yolo-cls-kit 🛠️
 # COPY THIS FILE TO 'config.yaml' AND EDIT IT FOR YOUR SETUP.
 
 # Dataset configuration

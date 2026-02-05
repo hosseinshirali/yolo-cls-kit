@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Generic training script for YOLO Classification Pipeline
+# Generic training script for yolo-cls-kit 🛠️
 # Usage: ./train.sh [optional: --config path/to/config.yaml]
 
 # Activate your environment here if needed
-# source activate yolo_cls_env
+# source activate yolo_cls_kit
 
 # Default config file
 CONFIG_FILE="config_template.yaml"

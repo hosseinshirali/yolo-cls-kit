@@ -261,7 +261,6 @@ def copy_temp_dataset(image_root: Union[str, Path], dest_root: Union[str, Path],
         dest_root (Union[str, Path]): Destination directory for the temporary dataset.
         split_files (Dict[str, str]): Dictionary mapping split names ('train', 'val', 'test') to file paths.
     """
-    """
     image_root = Path(image_root)
     dest_root = Path(dest_root)
     
@@ -1400,7 +1399,7 @@ def main(
         - test_results/: Detailed test analysis (confusion matrix, classification report, EigenCAM)
     """
     logger.info("="*80)
-    logger.info("YOLO CLASSIFICATION PIPELINE STARTED")
+    logger.info("yolo-cls-kit PIPELINE STARTED 🛠️")
     logger.info("="*80)
     
     # Create output directory if it doesn't exist

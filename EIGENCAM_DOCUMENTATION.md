@@ -1,4 +1,4 @@
-# EigenCAM for YOLO Classification - Complete Documentation
+# EigenCAM for yolo-cls-kit - Complete Documentation 🛠️
 
 **Version**: 1.1  
 **Date**: October 22, 2025  
@@ -7,6 +7,7 @@
 ---
 
 ## Table of Contents
+
 1. [Quick Start](#quick-start)
 2. [Critical Bug Fixes](#critical-bug-fixes)
 3. [Standalone Tool Usage](#standalone-tool-usage)
@@ -20,15 +21,17 @@
 ## Quick Start
 
 ### Installation
+
 ```bash
 # Activate your environment
-conda activate yolo_cls_env
+conda activate yolo_cls_kit
 
 # Verify dependencies (should already be installed)
 pip list | grep -E "ultralytics|opencv|matplotlib|torch"
 ```
 
 ### Basic Usage
+
 ```bash
 # Single image
 python generate_eigencam.py -m model.pt -i image.jpg -o output/
@@ -47,24 +50,29 @@ python generate_eigencam.py -m model.pt -i images_folder/ -o output/
 ### 1. SVD Sign Ambiguity ⚠️ CRITICAL
 
 **Problem**: ~50% of EigenCAM heatmaps were randomly inverted, showing:
+
 - Dark areas where bright activations should be
 - Bright areas where low activations should be
 - Inconsistent results across runs
 
-**Root Cause**: 
+**Root Cause**:
 Singular Value Decomposition (SVD) has inherent sign ambiguity. The decomposition `A = UΣV^T` can be multiplied by sign changes:
+
 ```
 A = UΣV^T = U(-I)(-I)ΣV^T  (still valid)
 ```
+
 The first principal component can point in either direction, causing random inversions.
 
 **Solution**:
+
 ```python
 # File: yolo_cam/utils/svd_on_activations.py (line 27)
 projection = np.abs(projection)  # ✅ Force positive activations
 ```
 
-**Impact**: 
+**Impact**:
+
 - ✅ Eliminates ALL inverted heatmaps
 - ✅ 100% consistent, positive activations
 - ✅ Reproducible results
@@ -76,6 +84,7 @@ projection = np.abs(projection)  # ✅ Force positive activations
 ### 2. Layer Tuple Handling
 
 **Problem**: Accessing layer `-1` caused:
+
 ```
 AttributeError: 'tuple' object has no attribute 'register_forward_hook'
 ```
@@ -83,6 +92,7 @@ AttributeError: 'tuple' object has no attribute 'register_forward_hook'
 **Root Cause**: Some YOLO layers return tuples `(tensor, auxiliary_info)` instead of single tensors.
 
 **Solution**:
+
 ```python
 # File: generate_eigencam.py (multiple locations)
 target_layer_obj = self.model.model.model[layer_idx]
@@ -96,7 +106,8 @@ if isinstance(target_layer_obj, tuple):
 
 ### 3. YOLO Results Object Handling
 
-**Problem**: 
+**Problem**:
+
 ```
 AttributeError: 'Results' object has no attribute 'shape'
 ```
@@ -104,6 +115,7 @@ AttributeError: 'Results' object has no attribute 'shape'
 **Root Cause**: YOLO returns Results objects containing predictions, not raw tensors. CAM target functions expected tensors.
 
 **Solution**:
+
 ```python
 # File: yolo_cam/utils/model_targets.py
 class ClassifierOutputTarget:
@@ -124,9 +136,11 @@ class ClassifierOutputTarget:
 ## Standalone Tool Usage
 
 ### Overview
+
 **`generate_eigencam.py`** - 778-line professional CLI tool for generating EigenCAM heatmaps.
 
 ### Features
+
 - ✅ Single image or batch processing
 - ✅ Multi-layer comparison (layers -1 to -4)
 - ✅ Automatic class prediction with confidence
@@ -140,17 +154,20 @@ class ClassifierOutputTarget:
 ### Command Examples
 
 #### 1. Single Image (Default Layer -2)
+
 ```bash
 python generate_eigencam.py \
     -m path/to/yolov8x-cls.pt \
     -i path/to/image.jpg \
     -o output_heatmaps
 ```
+
 **Output**: `output_heatmaps/heatmap_image.png`
 
 ---
 
 #### 2. Multi-Layer Comparison (Recommended for Analysis)
+
 ```bash
 python generate_eigencam.py \
     -m path/to/yolov8x-cls.pt \
@@ -158,7 +175,9 @@ python generate_eigencam.py \
     -o output_comparison \
     --compare
 ```
+
 **Output**: Side-by-side visualization showing:
+
 - Original image
 - Layer -1 (final features)
 - Layer -2 (high-level patterns) ⭐ DEFAULT
@@ -170,17 +189,20 @@ python generate_eigencam.py \
 ---
 
 #### 3. Process Entire Folder
+
 ```bash
 python generate_eigencam.py \
     -m path/to/yolov8x-cls.pt \
     -i path/to/image_folder \
     -o output_batch
 ```
+
 **Output**: Heatmap for each image with progress bar.
 
 ---
 
 #### 4. Target Specific Layer
+
 ```bash
 python generate_eigencam.py \
     -m path/to/yolov8x-cls.pt \
@@ -188,11 +210,13 @@ python generate_eigencam.py \
     -o output_heatmaps \
     --target -3
 ```
+
 **Output**: Heatmap from layer -3 only.
 
 ---
 
 #### 5. Verbose Logging (Debug)
+
 ```bash
 python generate_eigencam.py \
     -m path/to/yolov8x-cls.pt \
@@ -200,11 +224,13 @@ python generate_eigencam.py \
     -o output_heatmaps \
     -v
 ```
+
 **Output**: Detailed debug logs in console and log file.
 
 ---
 
 #### 6. Real-World Example (Network Path)
+
 ```bash
 python generate_eigencam.py \
     -m "\\server\path\to\best.pt" \
@@ -246,12 +272,14 @@ python generate_eigencam.py \
 ### Layer Selection Strategy
 
 **Why Layer -2 is Default:**
+
 - **Layer -1**: Final classification features (too specific)
 - **Layer -2**: ✅ **BEST** - Semantic features with spatial detail
 - **Layer -3**: More general mid-level patterns
 - **Layer -4**: Lower-level edge/texture features
 
 **YOLO Layer Structure:**
+
 ```
 model.model.model[0]   # Input
 model.model.model[1-9] # Backbone layers
@@ -264,12 +292,14 @@ model.model.model[-1]  # Output layer
 ### Visualization Parameters
 
 **Heatmap Overlay:**
+
 ```python
 alpha = 0.6  # Heatmap transparency
 colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ```
 
 **Color Scale:**
+
 - 🔵 Blue: Low activation (not important for prediction)
 - 🟡 Yellow: Medium activation
 - 🔴 Red: High activation (most important for prediction)
@@ -281,7 +311,9 @@ colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ### Core Implementation Files
 
 #### 1. `yolo_cam/utils/svd_on_activations.py` (35 lines)
+
 **Changes:**
+
 - ✅ Line 27: Added `projection = np.abs(projection)` for sign fix
 - ✅ Enhanced normalization logic
 - ✅ Improved documentation
@@ -291,7 +323,9 @@ colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ---
 
 #### 2. `yolo_cam/base_cam.py` (250 lines)
+
 **Changes:**
+
 - ✅ Improved error handling with try-except blocks
 - ✅ Added comprehensive logging
 - ✅ Tensor conversion logic for gradient-based methods
@@ -302,7 +336,9 @@ colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ---
 
 #### 3. `yolo_cam/utils/model_targets.py` (104 lines)
+
 **Changes:**
+
 - ✅ Added YOLO Results object handling in `ClassifierOutputTarget`
 - ✅ Added YOLO Results object handling in `ClassifierOutputSoftmaxTarget`
 - ✅ Extract `probs.data` tensor from Results
@@ -312,7 +348,9 @@ colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ---
 
 #### 4. `yolo_cam/eigen_cam.py` (Existing, minor changes)
+
 **Changes:**
+
 - ✅ Documentation improvements
 - ✅ Code clarity enhancements
 
@@ -321,9 +359,11 @@ colormap = cv2.COLORMAP_JET  # Blue (cold) to Red (hot)
 ### New Files Created
 
 #### 1. `generate_eigencam.py` ⭐ NEW (778 lines)
+
 **Purpose**: Professional standalone CLI tool for EigenCAM generation.
 
 **Architecture:**
+
 ```python
 class EigenCAMGenerator:
     __init__(model_path, device)      # Load model, setup GPU
@@ -338,6 +378,7 @@ def main():
 ```
 
 **Features:**
+
 - Comprehensive error handling
 - Progress bars with tqdm
 - Structured logging (INFO/DEBUG)
@@ -351,18 +392,21 @@ def main():
 ## Testing & Validation
 
 ### Test Environment
+
 - **Model**: YOLOv8x-cls trained on 14 beetle species
 - **Images**: High-resolution (3040 x 4032 pixels)
 - **Device**: NVIDIA GPU (CUDA)
 - **Dataset**: Agrilus beetle classification test set
 
 ### Before Fixes
+
 - ❌ ~50% inverted heatmaps (random, unpredictable)
 - ❌ Layer -1 access causes crashes
 - ❌ Inconsistent results across runs
 - ❌ No standalone tool available
 
 ### After Fixes
+
 - ✅ **100% correct heatmap orientation**
 - ✅ All layers (-1 to -4) accessible
 - ✅ Reproducible, consistent results
@@ -405,6 +449,7 @@ python generate_eigencam.py -m model.pt -i test.jpg -o test6/ --device cpu
 ## Performance Metrics
 
 ### Processing Speed (GPU: NVIDIA CUDA)
+
 | Task | Time | Notes |
 |------|------|-------|
 | Single image (640x640) | ~2-3 sec | Layer -2 |
@@ -413,17 +458,20 @@ python generate_eigencam.py -m model.pt -i test.jpg -o test6/ --device cpu
 | High-res image (4K) | ~4-5 sec | Automatic resizing |
 
 ### Processing Speed (CPU)
+
 | Task | Time | Notes |
 |------|------|-------|
 | Single image | ~8-12 sec | 4x slower |
 | Batch 100 images | ~12-15 min | Acceptable for offline |
 
 ### Memory Usage
+
 - **GPU Memory**: ~2GB for single image
 - **RAM**: ~4GB for batch processing
 - **Disk Space**: ~500KB per heatmap (PNG)
 
 ### Output File Sizes
+
 - Standard heatmap: **~500KB** (PNG, 640x640)
 - Layer comparison: **~1.5MB** (PNG, 2560x640)
 - High-res overlay: **~2-3MB** (maintains resolution)
@@ -435,10 +483,13 @@ python generate_eigencam.py -m model.pt -i test.jpg -o test6/ --device cpu
 ### Common Issues
 
 #### Issue 1: CUDA Out of Memory
+
 ```
 RuntimeError: CUDA out of memory. Tried to allocate X GB
 ```
+
 **Solutions:**
+
 ```bash
 # Option A: Use CPU mode
 python generate_eigencam.py ... --device cpu
@@ -454,10 +505,13 @@ torch.cuda.empty_cache()
 ---
 
 #### Issue 2: Model Not Found
+
 ```
 FileNotFoundError: [Errno 2] No such file or directory: 'model.pt'
 ```
+
 **Solutions:**
+
 ```bash
 # Use absolute paths
 python generate_eigencam.py -m "C:\full\path\to\model.pt" ...
@@ -472,10 +526,13 @@ ls "path/to/model.pt"
 ---
 
 #### Issue 3: Layer Index Error
+
 ```
 IndexError: list index out of range
 ```
+
 **Solutions:**
+
 ```bash
 # Use valid layer indices only
 python generate_eigencam.py ... --target -2  # ✅ Valid
@@ -488,16 +545,19 @@ python generate_eigencam.py ... --target -10 # ❌ Invalid
 ---
 
 #### Issue 4: Import Errors
+
 ```
 ModuleNotFoundError: No module named 'yolo_cam'
 ```
+
 **Solutions:**
+
 ```bash
 # Ensure correct directory
-cd path/to/yolo_cls/
+cd path/to/yolo-cls-kit/
 
 # Activate environment
-conda activate yolo_cls_env
+conda activate yolo_cls_kit
 
 # Verify yolo_cam folder exists
 ls yolo_cam/
@@ -509,12 +569,15 @@ python generate_eigencam.py ...
 ---
 
 #### Issue 5: Black/Empty Heatmaps
+
 **Possible Causes:**
+
 - Image preprocessing issue
 - Wrong layer selected
 - Model not properly loaded
 
 **Solutions:**
+
 ```bash
 # Try different layer
 python generate_eigencam.py ... --target -3
@@ -531,18 +594,21 @@ python -c "from ultralytics import YOLO; model = YOLO('model.pt'); print(model)"
 ## Best Practices
 
 ### For Research & Analysis
+
 1. **Always use multi-layer comparison** (`--compare`) initially to understand model behavior
 2. **Compare across classes** - Process samples from each class to identify patterns
 3. **Document findings** - Save outputs with descriptive names
 4. **Use layer -2 as baseline** - Best balance of detail and semantic meaning
 
 ### For Production & Deployment
+
 1. **Batch process validation sets** for consistent evaluation
 2. **Enable logging** for debugging and audit trails
 3. **Use GPU** when available for speed
 4. **Process in chunks** to manage memory
 
 ### For Troubleshooting Models
+
 1. **Start with single image** before batch processing
 2. **Check layer comparison** to see if features are learned
 3. **Compare to ground truth** - Verify heatmap focuses on relevant regions
@@ -570,6 +636,7 @@ python -c "from ultralytics import YOLO; model = YOLO('model.pt'); print(model)"
 ### Future Enhancements
 
 **High Priority:**
+
 1. ⭐ Complete GradCAM++ integration
 2. ⭐ Video frame-by-frame processing
 3. ⭐ Interactive zoom/pan in visualization
@@ -589,6 +656,7 @@ python -c "from ultralytics import YOLO; model = YOLO('model.pt'); print(model)"
 ## Migration Guide
 
 ### For Existing Training Pipeline
+
 **No changes required!** All fixes are backward compatible.
 
 ```python
@@ -606,7 +674,9 @@ grayscale_cam = cam(img_rgb)
 ```
 
 ### For New Standalone Usage
+
 Simply use the CLI tool:
+
 ```bash
 python generate_eigencam.py -m model.pt -i input/ -o output/
 ```
@@ -618,6 +688,7 @@ python generate_eigencam.py -m model.pt -i input/ -o output/
 ### Added Throughout Codebase
 
 1. **✅ Comprehensive Docstrings**
+
    ```python
    def generate_cam(self, img_path: str, output_path: str) -> bool:
        """
@@ -637,11 +708,13 @@ python generate_eigencam.py -m model.pt -i input/ -o output/
    ```
 
 2. **✅ Type Hints**
+
    ```python
    def get_target_layer(self, layer_idx: int) -> torch.nn.Module:
    ```
 
 3. **✅ Error Handling**
+
    ```python
    try:
        grayscale_cam = cam(img_rgb)
@@ -651,6 +724,7 @@ python generate_eigencam.py -m model.pt -i input/ -o output/
    ```
 
 4. **✅ Structured Logging**
+
    ```python
    logger.info("Processing started")
    logger.debug(f"Layer shape: {layer.shape}")
@@ -658,6 +732,7 @@ python generate_eigencam.py -m model.pt -i input/ -o output/
    ```
 
 5. **✅ Progress Bars**
+
    ```python
    for img in tqdm(images, desc="Generating CAMs"):
        process(img)
@@ -668,6 +743,7 @@ python generate_eigencam.py -m model.pt -i input/ -o output/
 ## Quick Reference Card
 
 ### Most Common Commands
+
 ```bash
 # Single image
 python generate_eigencam.py -m model.pt -i img.jpg -o out/
@@ -686,6 +762,7 @@ python generate_eigencam.py -m model.pt -i img.jpg -o out/ -v
 ```
 
 ### Layer Selection Guide
+
 | Layer | Features | Use Case |
 |-------|----------|----------|
 | -1 | Final classification | Specific class features |
@@ -698,16 +775,19 @@ python generate_eigencam.py -m model.pt -i img.jpg -o out/ -v
 ## Summary
 
 ### What Was Fixed
+
 1. ✅ **SVD sign ambiguity** - Critical bug affecting 50% of heatmaps
 2. ✅ **Layer tuple handling** - Robust access to all YOLO layers
 3. ✅ **YOLO Results parsing** - Proper tensor extraction
 
 ### What Was Created
+
 1. ✅ **Standalone CLI tool** (778 lines) - Professional, production-ready
 2. ✅ **Multi-layer comparison** - Visualize 4 layers side-by-side
 3. ✅ **Batch processing** - Handle entire folders efficiently
 
 ### What Was Improved
+
 1. ✅ **Code quality** - Docstrings, type hints, error handling
 2. ✅ **Logging** - Structured INFO/DEBUG levels
 3. ✅ **Documentation** - Comprehensive user guide
@@ -717,16 +797,19 @@ python generate_eigencam.py -m model.pt -i img.jpg -o out/ -v
 ## References
 
 ### Papers
+
 - **EigenCAM**: "Eigen-CAM: Class Activation Mapping using Principal Components"
 - **CAM**: "Learning Deep Features for Discriminative Localization" (Zhou et al., 2016)
 - **Grad-CAM**: "Grad-CAM: Visual Explanations from Deep Networks" (Selvaraju et al., 2017)
 
 ### Documentation
+
 - [Ultralytics YOLO Docs](https://docs.ultralytics.com/)
 - [PyTorch CAM Library](https://github.com/jacobgil/pytorch-grad-cam)
 - [OpenCV Documentation](https://docs.opencv.org/)
 
 ### Related Projects
+
 - [YOLOv8 Classification](https://github.com/ultralytics/ultralytics)
 - [Explainable AI Methods](https://github.com/topics/explainable-ai)
 
