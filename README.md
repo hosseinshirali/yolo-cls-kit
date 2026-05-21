@@ -20,6 +20,7 @@
   - [Training](#4-training)
 - [Validation & Visualization](#-validation--visualization)
 - [Advanced Usage](#-advanced-usage)
+- [ONNX Export (Deployment)](#-onnx-export-deployment)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -133,6 +134,74 @@ optimization:
 ### Resuming Training
 
 Interrupted? Just set `resume: True` in your config and point to the same output directory.
+
+---
+
+## 📦 ONNX Export (Deployment)
+
+After selecting your best model, you can export it to **ONNX format** for fast, framework-agnostic inference in production (ONNX Runtime, TensorRT, OpenVINO, web browsers, etc.).
+
+### Quick Start
+
+```bash
+# Basic export
+python export_onnx.py --model runs/train_results/weights/best.pt
+
+# Custom image size
+python export_onnx.py --model best.pt --imgsz 224
+
+# FP16 half precision (smaller & faster, requires CUDA)
+python export_onnx.py --model best.pt --half
+
+# Dynamic batch size (for variable batch inference)
+python export_onnx.py --model best.pt --dynamic
+
+# Simplify the ONNX graph + verify the export
+python export_onnx.py --model best.pt --simplify --verify
+```
+
+### All Options
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--model` | Path to your trained `.pt` model **(required)** | — |
+| `--imgsz` | Input image size | `640` |
+| `--output` | Custom output path for `.onnx` file | Same dir as model |
+| `--half` | Export with FP16 half precision | `False` |
+| `--dynamic` | Enable dynamic batch axis | `False` |
+| `--simplify` | Simplify ONNX graph (requires `onnxsim`) | `False` |
+| `--opset` | ONNX opset version | Auto |
+| `--verify` | Run a quick inference check after export | `False` |
+
+### Running the Exported Model
+
+```python
+import onnxruntime as ort
+import numpy as np
+from PIL import Image
+
+# Load model
+session = ort.InferenceSession("best.onnx")
+
+# Prepare input (adjust size to match --imgsz used during export)
+img = Image.open("test_image.jpg").resize((640, 640))
+img_np = np.array(img).astype(np.float32) / 255.0
+img_np = np.transpose(img_np, (2, 0, 1))  # HWC -> CHW
+img_np = np.expand_dims(img_np, axis=0)    # Add batch dim
+
+# Inference
+input_name = session.get_inputs()[0].name
+outputs = session.run(None, {input_name: img_np})
+predicted_class = np.argmax(outputs[0])
+print(f"Predicted class index: {predicted_class}")
+```
+
+### Optional Dependencies
+
+```bash
+pip install onnx onnxruntime  # or onnxruntime-gpu for GPU inference
+pip install onnxsim            # only needed for --simplify
+```
 
 ---
 

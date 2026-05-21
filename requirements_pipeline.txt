@@ -23,3 +23,9 @@ optuna>=3.0.0
 optuna-dashboard>=0.13.0  # Optional: web dashboard for monitoring
 plotly>=5.0.0             # For interactive visualizations
 kaleido>=0.2.1            # For exporting plots to static images
+
+# ONNX Export (optional - only needed for model deployment)
+onnx>=1.14.0              # ONNX model validation
+onnxruntime>=1.16.0       # CPU inference with ONNX Runtime
+# onnxruntime-gpu>=1.16.0 # Uncomment for GPU inference (replaces onnxruntime)
+# onnxsim>=0.4.33         # Uncomment for --simplify flag in export_onnx.py
